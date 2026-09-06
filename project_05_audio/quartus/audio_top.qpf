@@ -1,0 +1,7 @@
+#============================================================
+# Quartus Prime Project File: audio_top.qpf
+# Project: Project 5 - Real-Time Audio Spectrum Analyzer & Noise Classifier
+# Target Board: Terasic DE2-115 (Cyclone IV E EP4CE115F29C7)
+#============================================================
+
+PROJECT_REVISION = "audio_top"

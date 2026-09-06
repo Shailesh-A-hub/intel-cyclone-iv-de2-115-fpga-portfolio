@@ -1,0 +1,9 @@
+#============================================================
+# Quartus Project File: fire_gas_top.qpf
+# Project: Project 2 - Adaptive Multi-Sensor Fire & Gas Risk Scoring
+#============================================================
+
+QUARTUS_VERSION = "18.1"
+DATE = "September 2026"
+
+PROJECT_REVISION = "fire_gas_top"

@@ -1,0 +1,9 @@
+#============================================================
+# Quartus Project File: irrigation_top.qpf
+# Project: Project 3 - Smart Adaptive Irrigation System
+#============================================================
+
+QUARTUS_VERSION = "18.1"
+DATE = "September 2026"
+
+PROJECT_REVISION = "irrigation_top"

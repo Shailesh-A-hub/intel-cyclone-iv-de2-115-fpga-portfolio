@@ -1,0 +1,52 @@
+# ==============================================================================
+# Git Ignore for Intel Cyclone IV / Quartus / ModelSim / Icarus Verilog Projects
+# ==============================================================================
+
+# Quartus Prime temporary and output files
+db/
+incremental_db/
+output_files/
+hc_output/
+.qws
+*.rpt
+*.chg
+*.htm
+*.eqn
+*.pin
+*.sof
+*.pof
+*.jam
+*.jbc
+*.ekp
+*.jdi
+*.done
+*.smsg
+*.summary
+*.qws
+
+# ModelSim / QuestaSim artifacts
+work/
+transcript
+vsim.wlf
+*.wlf
+
+# Icarus Verilog simulation outputs
+*.vvp
+*.vcd
+
+# Python cache and byte-compiled files
+__pycache__/
+*.py[cod]
+*$py.class
+.pytest_cache/
+
+# OS and Editor artifacts
+Thumbs.db
+ehthumbs.db
+[Dd]esktop.ini
+.DS_Store
+*.swp
+*.bak
+*~
+.vscode/
+.idea/

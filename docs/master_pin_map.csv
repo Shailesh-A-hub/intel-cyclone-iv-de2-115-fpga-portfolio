@@ -1,0 +1,185 @@
+Project,Signal,FPGA Pin,Direction,Voltage,Peripheral,Notes
+ALL,CLOCK_50,PIN_Y2,Input,3.3-V LVTTL,50MHz Oscillator,Primary system clock
+ALL,CLOCK2_50,PIN_AG14,Input,3.3-V LVTTL,50MHz Oscillator,Secondary system clock
+ALL,CLOCK3_50,PIN_AG15,Input,3.3-V LVTTL,50MHz Oscillator,Tertiary system clock
+ALL,SMA_CLKIN,PIN_AH14,Input,3.3-V LVTTL,SMA Clock,External SMA clock input
+ALL,SMA_CLKOUT,PIN_AE23,Output,3.3-V LVTTL,SMA Clock,External SMA clock output
+ALL,KEY[0],PIN_M23,Input,3.3-V LVTTL,Pushbutton,Active-low push button 0 (Master Reset)
+ALL,KEY[1],PIN_M21,Input,3.3-V LVTTL,Pushbutton,Active-low push button 1
+ALL,KEY[2],PIN_N21,Input,3.3-V LVTTL,Pushbutton,Active-low push button 2
+ALL,KEY[3],PIN_R24,Input,3.3-V LVTTL,Pushbutton,Active-low push button 3
+ALL,SW[0],PIN_AB28,Input,3.3-V LVTTL,Slide Switch,Slide Switch 0
+ALL,SW[1],PIN_AC28,Input,3.3-V LVTTL,Slide Switch,Slide Switch 1
+ALL,SW[2],PIN_AC27,Input,3.3-V LVTTL,Slide Switch,Slide Switch 2
+ALL,SW[3],PIN_AD27,Input,3.3-V LVTTL,Slide Switch,Slide Switch 3
+ALL,SW[4],PIN_AB27,Input,3.3-V LVTTL,Slide Switch,Slide Switch 4
+ALL,SW[5],PIN_AC26,Input,3.3-V LVTTL,Slide Switch,Slide Switch 5
+ALL,SW[6],PIN_AD26,Input,3.3-V LVTTL,Slide Switch,Slide Switch 6
+ALL,SW[7],PIN_AB26,Input,3.3-V LVTTL,Slide Switch,Slide Switch 7
+ALL,SW[8],PIN_AC25,Input,3.3-V LVTTL,Slide Switch,Slide Switch 8
+ALL,SW[9],PIN_AB25,Input,3.3-V LVTTL,Slide Switch,Slide Switch 9
+ALL,SW[10],PIN_AC24,Input,3.3-V LVTTL,Slide Switch,Slide Switch 10
+ALL,SW[11],PIN_AB24,Input,3.3-V LVTTL,Slide Switch,Slide Switch 11
+ALL,SW[12],PIN_AB23,Input,3.3-V LVTTL,Slide Switch,Slide Switch 12
+ALL,SW[13],PIN_AA24,Input,3.3-V LVTTL,Slide Switch,Slide Switch 13
+ALL,SW[14],PIN_AA23,Input,3.3-V LVTTL,Slide Switch,Slide Switch 14
+ALL,SW[15],PIN_AA22,Input,3.3-V LVTTL,Slide Switch,Slide Switch 15
+ALL,SW[16],PIN_Y24,Input,3.3-V LVTTL,Slide Switch,Slide Switch 16
+ALL,SW[17],PIN_Y23,Input,3.3-V LVTTL,Slide Switch,Slide Switch 17
+ALL,LEDR[0],PIN_G19,Output,2.5 V,Red LED,LED Red 0
+ALL,LEDR[1],PIN_F19,Output,2.5 V,Red LED,LED Red 1
+ALL,LEDR[2],PIN_E19,Output,2.5 V,Red LED,LED Red 2
+ALL,LEDR[3],PIN_F21,Output,2.5 V,Red LED,LED Red 3
+ALL,LEDR[4],PIN_F18,Output,2.5 V,Red LED,LED Red 4
+ALL,LEDR[5],PIN_E18,Output,2.5 V,Red LED,LED Red 5
+ALL,LEDR[6],PIN_J19,Output,2.5 V,Red LED,LED Red 6
+ALL,LEDR[7],PIN_H19,Output,2.5 V,Red LED,LED Red 7
+ALL,LEDR[8],PIN_J17,Output,2.5 V,Red LED,LED Red 8
+ALL,LEDR[9],PIN_G17,Output,2.5 V,Red LED,LED Red 9
+ALL,LEDR[10],PIN_J15,Output,2.5 V,Red LED,LED Red 10
+ALL,LEDR[11],PIN_H16,Output,2.5 V,Red LED,LED Red 11
+ALL,LEDR[12],PIN_J16,Output,2.5 V,Red LED,LED Red 12
+ALL,LEDR[13],PIN_H17,Output,2.5 V,Red LED,LED Red 13
+ALL,LEDR[14],PIN_F15,Output,2.5 V,Red LED,LED Red 14
+ALL,LEDR[15],PIN_G15,Output,2.5 V,Red LED,LED Red 15
+ALL,LEDR[16],PIN_G16,Output,2.5 V,Red LED,LED Red 16
+ALL,LEDR[17],PIN_H15,Output,2.5 V,Red LED,LED Red 17
+ALL,LEDG[0],PIN_E21,Output,2.5 V,Green LED,LED Green 0
+ALL,LEDG[1],PIN_E22,Output,2.5 V,Green LED,LED Green 1
+ALL,LEDG[2],PIN_E25,Output,2.5 V,Green LED,LED Green 2
+ALL,LEDG[3],PIN_E24,Output,2.5 V,Green LED,LED Green 3
+ALL,LEDG[4],PIN_H21,Output,2.5 V,Green LED,LED Green 4
+ALL,LEDG[5],PIN_G20,Output,2.5 V,Green LED,LED Green 5
+ALL,LEDG[6],PIN_G22,Output,2.5 V,Green LED,LED Green 6
+ALL,LEDG[7],PIN_G21,Output,2.5 V,Green LED,LED Green 7
+ALL,LEDG[8],PIN_F17,Output,2.5 V,Green LED,LED Green 8
+ALL,HEX0[0],PIN_G18,Output,2.5 V,7-Segment,Digit 0 Segment a (Active-low)
+ALL,HEX0[1],PIN_F22,Output,2.5 V,7-Segment,Digit 0 Segment b (Active-low)
+ALL,HEX0[2],PIN_E17,Output,2.5 V,7-Segment,Digit 0 Segment c (Active-low)
+ALL,HEX0[3],PIN_L26,Output,3.3-V LVTTL,7-Segment,Digit 0 Segment d (Active-low)
+ALL,HEX0[4],PIN_L25,Output,3.3-V LVTTL,7-Segment,Digit 0 Segment e (Active-low)
+ALL,HEX0[5],PIN_J22,Output,2.5 V,7-Segment,Digit 0 Segment f (Active-low)
+ALL,HEX0[6],PIN_H22,Output,2.5 V,7-Segment,Digit 0 Segment g (Active-low)
+ALL,HEX1[0],PIN_M24,Output,3.3-V LVTTL,7-Segment,Digit 1 Segment a (Active-low)
+ALL,HEX1[1],PIN_Y22,Output,3.3-V LVTTL,7-Segment,Digit 1 Segment b (Active-low)
+ALL,HEX1[2],PIN_W21,Output,3.3-V LVTTL,7-Segment,Digit 1 Segment c (Active-low)
+ALL,HEX1[3],PIN_W22,Output,3.3-V LVTTL,7-Segment,Digit 1 Segment d (Active-low)
+ALL,HEX1[4],PIN_W25,Output,3.3-V LVTTL,7-Segment,Digit 1 Segment e (Active-low)
+ALL,HEX1[5],PIN_U23,Output,3.3-V LVTTL,7-Segment,Digit 1 Segment f (Active-low)
+ALL,HEX1[6],PIN_U24,Output,3.3-V LVTTL,7-Segment,Digit 1 Segment g (Active-low)
+ALL,HEX2[0],PIN_AA25,Output,3.3-V LVTTL,7-Segment,Digit 2 Segment a (Active-low)
+ALL,HEX2[1],PIN_AA26,Output,3.3-V LVTTL,7-Segment,Digit 2 Segment b (Active-low)
+ALL,HEX2[2],PIN_Y25,Output,3.3-V LVTTL,7-Segment,Digit 2 Segment c (Active-low)
+ALL,HEX2[3],PIN_W26,Output,3.3-V LVTTL,7-Segment,Digit 2 Segment d (Active-low)
+ALL,HEX2[4],PIN_Y26,Output,3.3-V LVTTL,7-Segment,Digit 2 Segment e (Active-low)
+ALL,HEX2[5],PIN_W27,Output,3.3-V LVTTL,7-Segment,Digit 2 Segment f (Active-low)
+ALL,HEX2[6],PIN_W28,Output,3.3-V LVTTL,7-Segment,Digit 2 Segment g (Active-low)
+ALL,HEX3[0],PIN_V21,Output,3.3-V LVTTL,7-Segment,Digit 3 Segment a (Active-low)
+ALL,HEX3[1],PIN_U21,Output,3.3-V LVTTL,7-Segment,Digit 3 Segment b (Active-low)
+ALL,HEX3[2],PIN_AB20,Output,3.3-V LVTTL,7-Segment,Digit 3 Segment c (Active-low)
+ALL,HEX3[3],PIN_AA21,Output,3.3-V LVTTL,7-Segment,Digit 3 Segment d (Active-low)
+ALL,HEX3[4],PIN_AD24,Output,3.3-V LVTTL,7-Segment,Digit 3 Segment e (Active-low)
+ALL,HEX3[5],PIN_AF23,Output,3.3-V LVTTL,7-Segment,Digit 3 Segment f (Active-low)
+ALL,HEX3[6],PIN_Y19,Output,3.3-V LVTTL,7-Segment,Digit 3 Segment g (Active-low)
+ALL,HEX4[0],PIN_AB19,Output,3.3-V LVTTL,7-Segment,Digit 4 Segment a (Active-low)
+ALL,HEX4[1],PIN_AA19,Output,3.3-V LVTTL,7-Segment,Digit 4 Segment b (Active-low)
+ALL,HEX4[2],PIN_AG21,Output,3.3-V LVTTL,7-Segment,Digit 4 Segment c (Active-low)
+ALL,HEX4[3],PIN_AH21,Output,3.3-V LVTTL,7-Segment,Digit 4 Segment d (Active-low)
+ALL,HEX4[4],PIN_AE19,Output,3.3-V LVTTL,7-Segment,Digit 4 Segment e (Active-low)
+ALL,HEX4[5],PIN_AF19,Output,3.3-V LVTTL,7-Segment,Digit 4 Segment f (Active-low)
+ALL,HEX4[6],PIN_AE18,Output,3.3-V LVTTL,7-Segment,Digit 4 Segment g (Active-low)
+ALL,HEX5[0],PIN_AD18,Output,3.3-V LVTTL,7-Segment,Digit 5 Segment a (Active-low)
+ALL,HEX5[1],PIN_AC18,Output,3.3-V LVTTL,7-Segment,Digit 5 Segment b (Active-low)
+ALL,HEX5[2],PIN_AB18,Output,3.3-V LVTTL,7-Segment,Digit 5 Segment c (Active-low)
+ALL,HEX5[3],PIN_AH19,Output,3.3-V LVTTL,7-Segment,Digit 5 Segment d (Active-low)
+ALL,HEX5[4],PIN_AG19,Output,3.3-V LVTTL,7-Segment,Digit 5 Segment e (Active-low)
+ALL,HEX5[5],PIN_AF18,Output,3.3-V LVTTL,7-Segment,Digit 5 Segment f (Active-low)
+ALL,HEX5[6],PIN_AH18,Output,3.3-V LVTTL,7-Segment,Digit 5 Segment g (Active-low)
+ALL,HEX6[0],PIN_AA17,Output,3.3-V LVTTL,7-Segment,Digit 6 Segment a (Active-low)
+ALL,HEX6[1],PIN_AB16,Output,3.3-V LVTTL,7-Segment,Digit 6 Segment b (Active-low)
+ALL,HEX6[2],PIN_AA16,Output,3.3-V LVTTL,7-Segment,Digit 6 Segment c (Active-low)
+ALL,HEX6[3],PIN_AB17,Output,3.3-V LVTTL,7-Segment,Digit 6 Segment d (Active-low)
+ALL,HEX6[4],PIN_AB15,Output,3.3-V LVTTL,7-Segment,Digit 6 Segment e (Active-low)
+ALL,HEX6[5],PIN_AA15,Output,3.3-V LVTTL,7-Segment,Digit 6 Segment f (Active-low)
+ALL,HEX6[6],PIN_AC17,Output,3.3-V LVTTL,7-Segment,Digit 6 Segment g (Active-low)
+ALL,HEX7[0],PIN_AD17,Output,3.3-V LVTTL,7-Segment,Digit 7 Segment a (Active-low)
+ALL,HEX7[1],PIN_AE17,Output,3.3-V LVTTL,7-Segment,Digit 7 Segment b (Active-low)
+ALL,HEX7[2],PIN_AG17,Output,3.3-V LVTTL,7-Segment,Digit 7 Segment c (Active-low)
+ALL,HEX7[3],PIN_AH17,Output,3.3-V LVTTL,7-Segment,Digit 7 Segment d (Active-low)
+ALL,HEX7[4],PIN_AF17,Output,3.3-V LVTTL,7-Segment,Digit 7 Segment e (Active-low)
+ALL,HEX7[5],PIN_AG18,Output,3.3-V LVTTL,7-Segment,Digit 7 Segment f (Active-low)
+ALL,HEX7[6],PIN_AA14,Output,3.3-V LVTTL,7-Segment,Digit 7 Segment g (Active-low)
+ALL,LCD_DATA[0],PIN_L3,InOut,3.3-V LVTTL,16x2 LCD,LCD Data bit 0
+ALL,LCD_DATA[1],PIN_L1,InOut,3.3-V LVTTL,16x2 LCD,LCD Data bit 1
+ALL,LCD_DATA[2],PIN_L2,InOut,3.3-V LVTTL,16x2 LCD,LCD Data bit 2
+ALL,LCD_DATA[3],PIN_K7,InOut,3.3-V LVTTL,16x2 LCD,LCD Data bit 3
+ALL,LCD_DATA[4],PIN_K1,InOut,3.3-V LVTTL,16x2 LCD,LCD Data bit 4
+ALL,LCD_DATA[5],PIN_K2,InOut,3.3-V LVTTL,16x2 LCD,LCD Data bit 5
+ALL,LCD_DATA[6],PIN_M3,InOut,3.3-V LVTTL,16x2 LCD,LCD Data bit 6
+ALL,LCD_DATA[7],PIN_M1,InOut,3.3-V LVTTL,16x2 LCD,LCD Data bit 7
+ALL,LCD_RW,PIN_M5,Output,3.3-V LVTTL,16x2 LCD,LCD Read/Write Select (0=Write)
+ALL,LCD_EN,PIN_L6,Output,3.3-V LVTTL,16x2 LCD,LCD Enable Strobe
+ALL,LCD_RS,PIN_M2,Output,3.3-V LVTTL,16x2 LCD,LCD Register Select (0=Cmd 1=Data)
+ALL,LCD_ON,PIN_L5,Output,3.3-V LVTTL,16x2 LCD,LCD Power On Control
+ALL,LCD_BLON,PIN_L4,Output,3.3-V LVTTL,16x2 LCD,LCD Backlight Control
+ALL,UART_TXD,PIN_G9,Output,3.3-V LVTTL,RS-232,UART Transmit Data
+ALL,UART_RXD,PIN_G12,Input,3.3-V LVTTL,RS-232,UART Receive Data
+ALL,UART_CTS,PIN_G14,Input,3.3-V LVTTL,RS-232,UART Clear to Send
+ALL,UART_RTS,PIN_J13,Output,3.3-V LVTTL,RS-232,UART Request to Send
+P5,AUD_BCLK,PIN_F2,InOut,3.3-V LVTTL,WM8731 Audio,Audio bit clock
+P5,AUD_XCK,PIN_E1,Output,3.3-V LVTTL,WM8731 Audio,Audio master clock (12.288MHz)
+P5,AUD_DACLRCK,PIN_E3,InOut,3.3-V LVTTL,WM8731 Audio,DAC sample rate clock
+P5,AUD_DACDAT,PIN_D1,Output,3.3-V LVTTL,WM8731 Audio,DAC serial data output
+P5,AUD_ADCLRCK,PIN_E2,InOut,3.3-V LVTTL,WM8731 Audio,ADC sample rate clock
+P5,AUD_ADCDAT,PIN_D2,Input,3.3-V LVTTL,WM8731 Audio,ADC serial data input
+P5,I2C_SCLK,PIN_B7,Output,3.3-V LVTTL,I2C EEPROM/Codec,I2C clock for WM8731 config
+P5,I2C_SDAT,PIN_A8,InOut,3.3-V LVTTL,I2C EEPROM/Codec,I2C data for WM8731 config
+P4_P5,VGA_CLK,PIN_A12,Output,3.3-V LVTTL,VGA DAC ADV7123,25.175MHz Pixel Clock
+P4_P5,VGA_HS,PIN_G13,Output,3.3-V LVTTL,VGA DAC ADV7123,Horizontal Sync
+P4_P5,VGA_VS,PIN_C13,Output,3.3-V LVTTL,VGA DAC ADV7123,Vertical Sync
+P4_P5,VGA_BLANK_N,PIN_F11,Output,3.3-V LVTTL,VGA DAC ADV7123,Composite Blanking
+P4_P5,VGA_SYNC_N,PIN_C10,Output,3.3-V LVTTL,VGA DAC ADV7123,Composite Sync
+P4_P5,VGA_R[0],PIN_E12,Output,3.3-V LVTTL,VGA DAC ADV7123,Red Video Bit 0 (LSB)
+P4_P5,VGA_R[1],PIN_E11,Output,3.3-V LVTTL,VGA DAC ADV7123,Red Video Bit 1
+P4_P5,VGA_R[2],PIN_D10,Output,3.3-V LVTTL,VGA DAC ADV7123,Red Video Bit 2
+P4_P5,VGA_R[3],PIN_F12,Output,3.3-V LVTTL,VGA DAC ADV7123,Red Video Bit 3
+P4_P5,VGA_R[4],PIN_G10,Output,3.3-V LVTTL,VGA DAC ADV7123,Red Video Bit 4
+P4_P5,VGA_R[5],PIN_J12,Output,3.3-V LVTTL,VGA DAC ADV7123,Red Video Bit 5
+P4_P5,VGA_R[6],PIN_H8,Output,3.3-V LVTTL,VGA DAC ADV7123,Red Video Bit 6
+P4_P5,VGA_R[7],PIN_H10,Output,3.3-V LVTTL,VGA DAC ADV7123,Red Video Bit 7 (MSB)
+P4_P5,VGA_G[0],PIN_G8,Output,3.3-V LVTTL,VGA DAC ADV7123,Green Video Bit 0 (LSB)
+P4_P5,VGA_G[1],PIN_G11,Output,3.3-V LVTTL,VGA DAC ADV7123,Green Video Bit 1
+P4_P5,VGA_G[2],PIN_F8,Output,3.3-V LVTTL,VGA DAC ADV7123,Green Video Bit 2
+P4_P5,VGA_G[3],PIN_H12,Output,3.3-V LVTTL,VGA DAC ADV7123,Green Video Bit 3
+P4_P5,VGA_G[4],PIN_C8,Output,3.3-V LVTTL,VGA DAC ADV7123,Green Video Bit 4
+P4_P5,VGA_G[5],PIN_B8,Output,3.3-V LVTTL,VGA DAC ADV7123,Green Video Bit 5
+P4_P5,VGA_G[6],PIN_F10,Output,3.3-V LVTTL,VGA DAC ADV7123,Green Video Bit 6
+P4_P5,VGA_G[7],PIN_C9,Output,3.3-V LVTTL,VGA DAC ADV7123,Green Video Bit 7 (MSB)
+P4_P5,VGA_B[0],PIN_B10,Output,3.3-V LVTTL,VGA DAC ADV7123,Blue Video Bit 0 (LSB)
+P4_P5,VGA_B[1],PIN_A10,Output,3.3-V LVTTL,VGA DAC ADV7123,Blue Video Bit 1
+P4_P5,VGA_B[2],PIN_C11,Output,3.3-V LVTTL,VGA DAC ADV7123,Blue Video Bit 2
+P4_P5,VGA_B[3],PIN_B11,Output,3.3-V LVTTL,VGA DAC ADV7123,Blue Video Bit 3
+P4_P5,VGA_B[4],PIN_A11,Output,3.3-V LVTTL,VGA DAC ADV7123,Blue Video Bit 4
+P4_P5,VGA_B[5],PIN_C12,Output,3.3-V LVTTL,VGA DAC ADV7123,Blue Video Bit 5
+P4_P5,VGA_B[6],PIN_D11,Output,3.3-V LVTTL,VGA DAC ADV7123,Blue Video Bit 6
+P4_P5,VGA_B[7],PIN_D12,Output,3.3-V LVTTL,VGA DAC ADV7123,Blue Video Bit 7 (MSB)
+P1,PIR_ZONE[0],PIN_AB22,Input,3.3-V LVTTL,GPIO JP5 Pin 1,PIR Motion Sensor Zone 1
+P1,PIR_ZONE[1],PIN_AC15,Input,3.3-V LVTTL,GPIO JP5 Pin 2,PIR Motion Sensor Zone 2
+P1,PIR_ZONE[2],PIN_AB21,Input,3.3-V LVTTL,GPIO JP5 Pin 3,PIR Motion Sensor Zone 3
+P1,PIR_ZONE[3],PIN_Y17,Input,3.3-V LVTTL,GPIO JP5 Pin 4,PIR Motion Sensor Zone 4
+P1,LDR_LIGHT_IN,PIN_AC21,Input,3.3-V LVTTL,GPIO JP5 Pin 5,Optional Ambient Light Digital In
+P1,RELAY_LIGHTS,PIN_Y16,Output,3.3-V LVTTL,GPIO JP5 Pin 6,Lighting Relay Control Signal
+P1,RELAY_HVAC,PIN_AD21,Output,3.3-V LVTTL,GPIO JP5 Pin 7,HVAC Relay Control Signal
+P1,RELAY_FANS,PIN_AE16,Output,3.3-V LVTTL,GPIO JP5 Pin 8,Ventilation Fan Relay Control
+P2,SPI_ADC_CS_N,PIN_AD15,Output,3.3-V LVTTL,GPIO JP5 Pin 9,External ADC Chip Select
+P2,SPI_ADC_SCLK,PIN_AE15,Output,3.3-V LVTTL,GPIO JP5 Pin 10,External ADC Serial Clock
+P2,SPI_ADC_MOSI,PIN_AC19,Output,3.3-V LVTTL,GPIO JP5 Pin 11,External ADC Data Output from FPGA
+P2,SPI_ADC_MISO,PIN_AF16,Input,3.3-V LVTTL,GPIO JP5 Pin 12,External ADC Data Input to FPGA
+P2,BUZZER_PWM,PIN_AD19,Output,3.3-V LVTTL,GPIO JP5 Pin 13,Acoustic Risk Alarm Buzzer PWM
+P2,FLAME_DIGITAL,PIN_AF15,Input,3.3-V LVTTL,GPIO JP5 Pin 14,Digital Flame Sensor Direct Trip
+P3,DHT11_DATA,PIN_AF24,InOut,3.3-V LVTTL,GPIO JP5 Pin 15,DHT11/22 Bidirectional 1-Wire Line
+P3,RAIN_SWITCH,PIN_AE21,Input,3.3-V LVTTL,GPIO JP5 Pin 16,Digital Rain Sensor Switch
+P3,PUMP_RELAY,PIN_AF25,Output,3.3-V LVTTL,GPIO JP5 Pin 17,Irrigation Pump Relay Trigger
+P4,EXT_I2C_SCL,PIN_AC22,InOut,3.3-V LVTTL,GPIO JP5 Pin 18,APDS-9960 I2C Clock (External pull-up)
+P4,EXT_I2C_SDA,PIN_AE22,InOut,3.3-V LVTTL,GPIO JP5 Pin 19,APDS-9960 I2C Data (External pull-up)
+P4,APDS_INT_N,PIN_AF21,Input,3.3-V LVTTL,GPIO JP5 Pin 20,APDS-9960 Interrupt Pin

@@ -1,0 +1,11 @@
+#============================================================
+# Quartus Project File: gesture_top.qpf
+# Project: Project 4 - FPGA Gesture-Controlled Menu Interface
+# Target Device: Cyclone IV E EP4CE115F29C7
+# Target Board: Terasic DE2-115
+#============================================================
+
+QUARTUS_VERSION = "18.1"
+DATE = "September 2026"
+
+PROJECT_REVISION = "gesture_top"

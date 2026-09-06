@@ -1,0 +1,10 @@
+#============================================================
+# Quartus Prime Project File: occupancy_top.qpf
+# Project: Project 1 - Multi-Zone Occupancy & Energy-Saving Engine
+# Device: Cyclone IV EP4CE115F29C7 (Terasic DE2-115)
+#============================================================
+
+QUARTUS_VERSION = "18.1"
+DATE = "September 04, 2026"
+
+PROJECT_REVISION = "occupancy_top"
