@@ -22,7 +22,7 @@ module reset_synchronizer #(
     wire rst_raw_active = ACTIVE_LOW_IN ? (~async_rst_in) : async_rst_in;
 
     // Shift register for synchronization
-    (* altera_attribute = "-name SYNCHRONIZER_IDENTIFICATION FORCED_IF_AUTO" *)
+    (* altera_attribute = "-name SYNCHRONIZER_IDENTIFICATION FORCED" *)
     reg [STAGES-1:0] sync_reg;
 
     always @(posedge clk or posedge rst_raw_active) begin
