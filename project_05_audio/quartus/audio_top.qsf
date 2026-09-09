@@ -9,6 +9,8 @@ set_global_assignment -name FAMILY "Cyclone IV E"
 set_global_assignment -name DEVICE EP4CE115F29C7
 set_global_assignment -name TOP_LEVEL_ENTITY audio_top
 set_global_assignment -name SDC_FILE audio_top.sdc
+set_global_assignment -name CYCLONEII_RESERVE_NCEO_AFTER_CONFIGURATION "USE AS REGULAR IO"
+set_global_assignment -name RESERVE_FLASH_NCE_AFTER_CONFIGURATION "USE AS REGULAR IO"
 
 # RTL Source Files
 set_global_assignment -name VERILOG_FILE ../rtl/audio_top.v
@@ -145,7 +147,13 @@ set_location_assignment PIN_AA21 -to HEX3[3]
 set_location_assignment PIN_AD24 -to HEX3[4]
 set_location_assignment PIN_AF23 -to HEX3[5]
 set_location_assignment PIN_Y19 -to HEX3[6]
-set_instance_assignment -name IO_STANDARD "2.5 V" -to HEX3[*]
+set_instance_assignment -name IO_STANDARD "2.5 V" -to HEX3[0]
+set_instance_assignment -name IO_STANDARD "2.5 V" -to HEX3[1]
+set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to HEX3[2]
+set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to HEX3[3]
+set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to HEX3[4]
+set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to HEX3[5]
+set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to HEX3[6]
 
 set_location_assignment PIN_AB19 -to HEX4[0]
 set_location_assignment PIN_AA19 -to HEX4[1]
