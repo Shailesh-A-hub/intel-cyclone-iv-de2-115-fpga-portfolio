@@ -28,8 +28,8 @@ module wm8731_configurator #(
     // Byte 2: Data[7:0]
     localparam TOTAL_REGS = 10;
     wire [15:0] config_rom [0:TOTAL_REGS-1];
-    assign config_rom[0] = {7'd0, 9'h017}; // Left Line In: 0dB, unmute
-    assign config_rom[1] = {7'd1, 9'h017}; // Right Line In: 0dB, unmute
+    assign config_rom[0] = {7'd0, 9'h01F}; // Left Line In: +12dB boost, unmute (optimized for laptop/phone output)
+    assign config_rom[1] = {7'd1, 9'h01F}; // Right Line In: +12dB boost, unmute (optimized for laptop/phone output)
     assign config_rom[2] = {7'd2, 9'h079}; // Left HP: 0dB
     assign config_rom[3] = {7'd3, 9'h079}; // Right HP: 0dB
     assign config_rom[4] = {7'd4, 9'h012}; // Analogue path: Line to ADC, DAC unmute

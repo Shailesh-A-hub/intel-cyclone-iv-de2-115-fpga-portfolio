@@ -11,7 +11,7 @@ create_clock -name CLOCK_50 -period 20.000 [get_ports {CLOCK_50}]
 create_generated_clock -name aud_xck -source [get_ports {CLOCK_50}] -divide_by 4 [get_registers {xck_div[1]}]
 
 # Generated Pixel Clock for VGA DAC (25 MHz, 40.0 ns period)
-create_generated_clock -name vga_clk -source [get_ports {CLOCK_50}] -divide_by 2 [get_registers {vga_spectrum_display:u_vga_spec|vga_timing_controller:u_vga_timing|vga_clk}]
+create_generated_clock -name vga_clk -source [get_ports {CLOCK_50}] -divide_by 2 [get_registers {vga_spectrum_display:u_vga_disp|vga_timing_controller:u_vga_timing|vga_clk}]
 
 # Derive Clock Uncertainty
 derive_clock_uncertainty
@@ -27,3 +27,10 @@ set_false_path -to [get_ports {HEX*[*]}]
 set_false_path -to [get_ports {LCD_*}]
 set_false_path -to [get_ports {UART_TXD}]
 set_false_path -to [get_ports {I2C_*}]
+
+# Audio Codec Asynchronous I2S Inputs & Static Outputs (Synchronized internally via 3-stage registers)
+set_false_path -from [get_ports {AUD_BCLK}]
+set_false_path -from [get_ports {AUD_ADCLRCK}]
+set_false_path -from [get_ports {AUD_ADCDAT}]
+set_false_path -to [get_ports {AUD_DACLRCK}]
+set_false_path -to [get_ports {AUD_DACDAT}]

@@ -138,13 +138,37 @@ module audio_top #(
     wire codec_config_done;
     wire codec_config_err;
 
+    // Power-up auto-initialization pulse (~50ms after reset deassertion)
+    reg [21:0] auto_init_cnt;
+    reg        auto_init_done;
+    reg        auto_init_pulse;
+    always @(posedge CLOCK_50 or negedge sys_reset_n) begin
+        if (!sys_reset_n) begin
+            auto_init_cnt   <= 22'd0;
+            auto_init_done  <= 1'b0;
+            auto_init_pulse <= 1'b0;
+        end else begin
+            auto_init_pulse <= 1'b0;
+            if (!auto_init_done) begin
+                if (auto_init_cnt == (SIMULATION ? 22'd200 : 22'd2_500_000)) begin // ~50ms @ 50MHz
+                    auto_init_pulse <= 1'b1;
+                    auto_init_done  <= 1'b1;
+                end else begin
+                    auto_init_cnt <= auto_init_cnt + 1'b1;
+                end
+            end
+        end
+    end
+
+    wire codec_start_trigger = btn_reinit_pulse | auto_init_pulse;
+
     wm8731_configurator #(
         .CLK_FREQ_HZ(CLK_FREQ_HZ),
         .I2C_FREQ_HZ(SIMULATION ? 400_000 : 100_000)
     ) u_wm8731_cfg (
         .clk(CLOCK_50),
         .rst(!sys_reset_n),
-        .start(btn_reinit_pulse),
+        .start(codec_start_trigger),
         .config_done(codec_config_done),
         .config_error(codec_config_err),
         .i2c_scl(I2C_SCLK),
