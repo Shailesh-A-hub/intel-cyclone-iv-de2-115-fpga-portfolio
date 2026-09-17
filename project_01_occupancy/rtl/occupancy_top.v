@@ -67,8 +67,11 @@ module occupancy_top #(
         .tick_1sec(tick_1s)
     );
 
-    // 3. Debouncers on Motion Inputs (combines switches and GPIO PIRs)
-    wire [3:0] raw_motion = SW[3:0] | GPIO_PIR_IN;
+    // 3. Debouncers on Motion Inputs (combines switches and GPIO sensors)
+    // SW[5] = 1: Active-low Optical IR sensors (OUT=0 on detection)
+    // SW[5] = 0: Standard active-high PIR sensors (OUT=1 on detection)
+    wire [3:0] eff_gpio_motion = SW[5] ? (~GPIO_PIR_IN) : GPIO_PIR_IN;
+    wire [3:0] raw_motion = SW[3:0] | eff_gpio_motion;
     wire [3:0] debounced_motion;
 
     genvar z;

@@ -12,6 +12,7 @@ set_global_assignment -name SDC_FILE gesture_top.sdc
 
 # RTL Source Files
 set_global_assignment -name VERILOG_FILE ../rtl/gesture_top.v
+set_global_assignment -name VERILOG_FILE ../rtl/ir_cross_gesture_decoder.v
 set_global_assignment -name VERILOG_FILE ../rtl/apds9960_i2c_driver.v
 set_global_assignment -name VERILOG_FILE ../rtl/gesture_decoder.v
 set_global_assignment -name VERILOG_FILE ../rtl/menu_fsm.v
@@ -225,10 +226,11 @@ set_location_assignment PIN_G9 -to UART_TXD
 set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to UART_TXD
 
 # Expansion Header JP5 (GPIO)
-# GPIO[0]: APDS-9960 SCL, GPIO[1]: APDS-9960 SDA, GPIO[2]: APDS-9960 INT_N
+# GPIO[0]: IR_UP / APDS SCL, GPIO[1]: IR_DOWN / APDS SDA, GPIO[2]: IR_LEFT / APDS INT, GPIO[3]: IR_RIGHT
 set_location_assignment PIN_AB22 -to GPIO[0]
 set_location_assignment PIN_AC15 -to GPIO[1]
 set_location_assignment PIN_AB21 -to GPIO[2]
+set_location_assignment PIN_Y17 -to GPIO[3]
 set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to GPIO[*]
 
 set_global_assignment -name LAST_QUARTUS_VERSION "25.1std.0 Lite Edition"

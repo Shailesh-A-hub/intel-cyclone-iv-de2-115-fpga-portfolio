@@ -203,10 +203,10 @@ module gesture_top #(
     wire [7:0]  apds_raw_u, apds_raw_d, apds_raw_l, apds_raw_r;
     wire        apds_sample_valid;
 
-    // Physical I2C open-drain lines on JP5
+    // Physical I2C open-drain lines on JP5 (active when SW[15] is HIGH)
     wire apds_scl, apds_sda;
-    assign GPIO[0] = apds_scl;
-    assign GPIO[1] = apds_sda;
+    assign GPIO[0] = (SW[15]) ? apds_scl : 1'bz;
+    assign GPIO[1] = (SW[15]) ? apds_sda : 1'bz;
     wire apds_int_n = GPIO[2];
 
     apds9960_i2c_driver #(
@@ -232,13 +232,13 @@ module gesture_top #(
     );
 
     // -------------------------------------------------------------------------
-    // Gesture Decoder Engine
+    // APDS-9960 Gesture Decoder Engine
     // -------------------------------------------------------------------------
-    wire        gesture_valid;
-    wire [2:0]  gesture_code;
-    wire [31:0] gesture_ascii;
-    wire [15:0] gesture_counter;
-    wire        gesture_active;
+    wire        apds_gesture_valid;
+    wire [2:0]  apds_gesture_code;
+    wire [31:0] apds_gesture_ascii;
+    wire [15:0] apds_gesture_counter;
+    wire        apds_gesture_active;
 
     gesture_decoder #(
         .CLK_FREQ_HZ(CLK_FREQ_HZ),
@@ -255,13 +255,58 @@ module gesture_top #(
         .synth_mode(synth_mode_en),
         .synth_trigger(synth_trigger),
         .synth_gesture(synth_code),
-        .gesture_valid(gesture_valid),
-        .gesture_code(gesture_code),
-        .gesture_ascii(gesture_ascii),
-        .gesture_count(gesture_counter),
-        .gesture_active(gesture_active),
+        .gesture_valid(apds_gesture_valid),
+        .gesture_code(apds_gesture_code),
+        .gesture_ascii(apds_gesture_ascii),
+        .gesture_count(apds_gesture_counter),
+        .gesture_active(apds_gesture_active),
         .fsm_state_dbg()
     );
+
+    // -------------------------------------------------------------------------
+    // 4-Sensor Optical IR Cross-Array Gesture Decoder (Default Physical Mode)
+    // Sensor Mapping:
+    // GPIO[0]: IR_UP    (North Sensor)
+    // GPIO[1]: IR_DOWN  (South Sensor)
+    // GPIO[2]: IR_LEFT  (West Sensor)
+    // GPIO[3]: IR_RIGHT (East Sensor)
+    // -------------------------------------------------------------------------
+    wire        ir_cross_valid;
+    wire [2:0]  ir_cross_code;
+    wire [31:0] ir_cross_ascii;
+    wire [15:0] ir_cross_counter;
+    wire [3:0]  ir_sensor_active;
+
+    ir_cross_gesture_decoder #(
+        .CLK_FREQ_HZ(CLK_FREQ_HZ),
+        .DEBOUNCE_MS(SIMULATION ? 1 : 10),
+        .SWIPE_WINDOW_MS(SIMULATION ? 5 : 400),
+        .REFRACTORY_MS(SIMULATION ? 2 : 250),
+        .ACTIVE_LOW(1),
+        .SIMULATION(SIMULATION)
+    ) u_ir_cross (
+        .clk(CLOCK_50),
+        .reset_n(sys_reset_n),
+        .ir_raw_u(GPIO[0]),
+        .ir_raw_d(GPIO[1]),
+        .ir_raw_l(GPIO[2]),
+        .ir_raw_r(GPIO[3]),
+        .gesture_valid(ir_cross_valid),
+        .gesture_code(ir_cross_code),
+        .gesture_ascii(ir_cross_ascii),
+        .gesture_count(ir_cross_counter),
+        .sensor_active_led(ir_sensor_active)
+    );
+
+    // Gesture Source Multiplexer:
+    // SW[15]=0: 4-Sensor Optical IR Cross Array (Default)
+    // SW[15]=1 or SW[17]=1: APDS-9960 I2C or Synthetic Mode
+    wire use_apds_or_synth = SW[15] || synth_mode_en;
+    wire        gesture_valid   = use_apds_or_synth ? apds_gesture_valid   : ir_cross_valid;
+    wire [2:0]  gesture_code    = use_apds_or_synth ? apds_gesture_code    : ir_cross_code;
+    wire [31:0] gesture_ascii   = use_apds_or_synth ? apds_gesture_ascii   : ir_cross_ascii;
+    wire [15:0] gesture_counter = use_apds_or_synth ? apds_gesture_counter : ir_cross_counter;
+    wire        gesture_active  = use_apds_or_synth ? apds_gesture_active  : (|ir_sensor_active);
 
     // -------------------------------------------------------------------------
     // Hierarchical Menu FSM
@@ -396,8 +441,8 @@ module gesture_top #(
     // LEDG:
     // [0]: Sensor Ready, [1]: Init Done, [2]: Submenu Active, [3]: Beep Enabled
     // [7:4]: Active Menu One-Hot, [8]: UART TX active
-    assign LEDG[0]   = apds_ready;
-    assign LEDG[1]   = apds_init_done;
+    assign LEDG[0]   = use_apds_or_synth ? apds_ready : 1'b1;
+    assign LEDG[1]   = use_apds_or_synth ? apds_init_done : 1'b1;
     assign LEDG[2]   = in_submenu;
     assign LEDG[3]   = setting_beep_en;
     assign LEDG[4]   = (current_menu == 2'd0);
@@ -408,8 +453,8 @@ module gesture_top #(
 
     // LEDR:
     // [0]: UP, [1]: DOWN, [2]: LEFT, [3]: RIGHT, [4]: NEAR, [5]: FAR
-    // [11:8]: Raw photodiode activity meter
-    // [16]: I2C Error, [17]: Synthetic mode active
+    // [11:8]: IR sensor / Photodiode activity meter ([11]:R, [10]:L, [9]:D, [8]:U)
+    // [15]: APDS-9960 mode active, [16]: I2C Error, [17]: Synthetic mode active
     assign LEDR[0]    = (gesture_code == 3'd1);
     assign LEDR[1]    = (gesture_code == 3'd2);
     assign LEDR[2]    = (gesture_code == 3'd3);
@@ -417,11 +462,12 @@ module gesture_top #(
     assign LEDR[4]    = (gesture_code == 3'd5);
     assign LEDR[5]    = (gesture_code == 3'd6);
     assign LEDR[7:6]  = 2'b00;
-    assign LEDR[8]    = (apds_raw_u > 8'd20);
-    assign LEDR[9]    = (apds_raw_d > 8'd20);
-    assign LEDR[10]   = (apds_raw_l > 8'd20);
-    assign LEDR[11]   = (apds_raw_r > 8'd20);
-    assign LEDR[15:12]= 4'b0000;
+    assign LEDR[8]    = use_apds_or_synth ? (apds_raw_u > 8'd20) : ir_sensor_active[0];
+    assign LEDR[9]    = use_apds_or_synth ? (apds_raw_d > 8'd20) : ir_sensor_active[1];
+    assign LEDR[10]   = use_apds_or_synth ? (apds_raw_l > 8'd20) : ir_sensor_active[2];
+    assign LEDR[11]   = use_apds_or_synth ? (apds_raw_r > 8'd20) : ir_sensor_active[3];
+    assign LEDR[14:12]= 3'b000;
+    assign LEDR[15]   = SW[15];
     assign LEDR[16]   = apds_i2c_err;
     assign LEDR[17]   = synth_mode_en;
 

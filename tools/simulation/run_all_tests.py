@@ -143,6 +143,7 @@ TEST_SUITES = [
         "tb": REPO_ROOT / "project_04_gesture" / "sim" / "tb_gesture_top.v",
         "rtl": [
             REPO_ROOT / "project_04_gesture" / "rtl" / "gesture_top.v",
+            REPO_ROOT / "project_04_gesture" / "rtl" / "ir_cross_gesture_decoder.v",
             REPO_ROOT / "project_04_gesture" / "rtl" / "apds9960_i2c_driver.v",
             REPO_ROOT / "project_04_gesture" / "rtl" / "gesture_decoder.v",
             REPO_ROOT / "project_04_gesture" / "rtl" / "menu_fsm.v",
