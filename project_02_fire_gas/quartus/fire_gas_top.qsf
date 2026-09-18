@@ -24,6 +24,8 @@ set_global_assignment -name VERILOG_FILE ../../common/rtl/pwm_generator.v
 set_global_assignment -name VERILOG_FILE ../../common/rtl/lcd_hd44780_controller.v
 set_global_assignment -name VERILOG_FILE ../../common/rtl/seven_seg_dec.v
 set_global_assignment -name VERILOG_FILE ../../common/rtl/periodic_timer.v
+set_global_assignment -name VERILOG_FILE ../rtl/gas_lcd_cycler.v
+set_global_assignment -name VERILOG_FILE ../../common/rtl/dht11_controller.v
 set_global_assignment -name VERILOG_FILE ../../common/rtl/uart_tx.v
 
 # Clock (50 MHz)

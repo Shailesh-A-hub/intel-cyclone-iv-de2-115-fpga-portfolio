@@ -81,45 +81,6 @@ TEST_SUITES = [
         "rtl": [COMMON_RTL / "i2s_receiver.v"]
     },
     {
-        "name": "tb_occupancy_top (Project 1 Integration)",
-        "tb": REPO_ROOT / "project_01_occupancy" / "sim" / "tb_occupancy_top.v",
-        "rtl": [
-            REPO_ROOT / "project_01_occupancy" / "rtl" / "occupancy_top.v",
-            REPO_ROOT / "project_01_occupancy" / "rtl" / "zone_fsm.v",
-            REPO_ROOT / "project_01_occupancy" / "rtl" / "energy_decision_engine.v",
-            REPO_ROOT / "project_01_occupancy" / "rtl" / "occupancy_uart_logger.v",
-            COMMON_RTL / "reset_synchronizer.v",
-            COMMON_RTL / "button_debounce.v",
-            COMMON_RTL / "timer_ms.v",
-            COMMON_RTL / "timer_sec.v",
-            COMMON_RTL / "seven_seg_hex.v",
-            COMMON_RTL / "seven_seg_dec.v",
-            COMMON_RTL / "pwm_generator.v",
-            COMMON_RTL / "lcd_hd44780_controller.v",
-            COMMON_RTL / "uart_tx.v"
-        ]
-    },
-    {
-        "name": "tb_fire_gas_top (Project 2 Integration)",
-        "tb": REPO_ROOT / "project_02_fire_gas" / "sim" / "tb_fire_gas_top.v",
-        "rtl": [
-            REPO_ROOT / "project_02_fire_gas" / "rtl" / "fire_gas_top.v",
-            REPO_ROOT / "project_02_fire_gas" / "rtl" / "mcp3008_adc_controller.v",
-            REPO_ROOT / "project_02_fire_gas" / "rtl" / "sensor_normalizer.v",
-            REPO_ROOT / "project_02_fire_gas" / "rtl" / "risk_engine_q8_8.v",
-            REPO_ROOT / "project_02_fire_gas" / "rtl" / "alarm_buzzer_controller.v",
-            REPO_ROOT / "project_02_fire_gas" / "rtl" / "fire_gas_uart_logger.v",
-            COMMON_RTL / "reset_synchronizer.v",
-            COMMON_RTL / "button_debounce.v",
-            COMMON_RTL / "spi_master.v",
-            COMMON_RTL / "pwm_generator.v",
-            COMMON_RTL / "lcd_hd44780_controller.v",
-            COMMON_RTL / "seven_seg_dec.v",
-            COMMON_RTL / "periodic_timer.v",
-            COMMON_RTL / "uart_tx.v"
-        ]
-    },
-    {
         "name": "tb_irrigation_top (Project 3 Integration)",
         "tb": REPO_ROOT / "project_03_irrigation" / "sim" / "tb_irrigation_top.v",
         "rtl": [
@@ -133,29 +94,6 @@ TEST_SUITES = [
             COMMON_RTL / "button_debounce.v",
             COMMON_RTL / "spi_master.v",
             COMMON_RTL / "lcd_hd44780_controller.v",
-            COMMON_RTL / "seven_seg_dec.v",
-            COMMON_RTL / "periodic_timer.v",
-            COMMON_RTL / "uart_tx.v"
-        ]
-    },
-    {
-        "name": "tb_gesture_top (Project 4 Integration)",
-        "tb": REPO_ROOT / "project_04_gesture" / "sim" / "tb_gesture_top.v",
-        "rtl": [
-            REPO_ROOT / "project_04_gesture" / "rtl" / "gesture_top.v",
-            REPO_ROOT / "project_04_gesture" / "rtl" / "ir_cross_gesture_decoder.v",
-            REPO_ROOT / "project_04_gesture" / "rtl" / "apds9960_i2c_driver.v",
-            REPO_ROOT / "project_04_gesture" / "rtl" / "gesture_decoder.v",
-            REPO_ROOT / "project_04_gesture" / "rtl" / "menu_fsm.v",
-            REPO_ROOT / "project_04_gesture" / "rtl" / "vga_menu_display.v",
-            REPO_ROOT / "project_04_gesture" / "rtl" / "gesture_uart_logger.v",
-            COMMON_RTL / "reset_synchronizer.v",
-            COMMON_RTL / "button_debounce.v",
-            COMMON_RTL / "edge_detector.v",
-            COMMON_RTL / "i2c_master.v",
-            COMMON_RTL / "lcd_hd44780_controller.v",
-            COMMON_RTL / "vga_timing_controller.v",
-            COMMON_RTL / "seven_seg_hex.v",
             COMMON_RTL / "seven_seg_dec.v",
             COMMON_RTL / "periodic_timer.v",
             COMMON_RTL / "uart_tx.v"
@@ -185,6 +123,44 @@ TEST_SUITES = [
             COMMON_RTL / "lcd_hd44780_controller.v",
             COMMON_RTL / "seven_seg_hex.v",
             COMMON_RTL / "seven_seg_dec.v",
+            COMMON_RTL / "uart_tx.v"
+        ]
+    },
+    {
+        "name": "tb_basic3_occupancy (Basic #3 IR Counter)",
+        "tb": REPO_ROOT / "project_01_occupancy" / "sim" / "tb_basic3_occupancy.v",
+        "rtl": [
+            REPO_ROOT / "project_01_occupancy" / "rtl" / "basic3_occupancy_top.v",
+            REPO_ROOT / "project_01_occupancy" / "rtl" / "ir_direction_fsm.v",
+            COMMON_RTL / "reset_synchronizer.v",
+            COMMON_RTL / "button_debounce.v",
+            COMMON_RTL / "seven_seg_dec.v",
+            COMMON_RTL / "lcd_hd44780_controller.v"
+        ]
+    },
+    {
+        "name": "tb_basic1_fire_gas (Basic #1 Gas & Fire Readout)",
+        "tb": REPO_ROOT / "project_02_fire_gas" / "sim" / "tb_basic1_fire_gas.v",
+        "rtl": [
+            REPO_ROOT / "project_02_fire_gas" / "rtl" / "basic1_fire_gas_top.v",
+            REPO_ROOT / "project_02_fire_gas" / "rtl" / "gas_lcd_cycler.v",
+            COMMON_RTL / "reset_synchronizer.v",
+            COMMON_RTL / "button_debounce.v",
+            COMMON_RTL / "dht11_controller.v",
+            COMMON_RTL / "lcd_hd44780_controller.v"
+        ]
+    },
+    {
+        "name": "tb_intermediate9_gesture (Intermediate #9 Gesture Menu)",
+        "tb": REPO_ROOT / "project_04_gesture" / "sim" / "tb_intermediate9_gesture.v",
+        "rtl": [
+            REPO_ROOT / "project_04_gesture" / "rtl" / "intermediate9_gesture_top.v",
+            REPO_ROOT / "project_04_gesture" / "rtl" / "ir_gesture_sequence_fsm.v",
+            REPO_ROOT / "project_04_gesture" / "rtl" / "lcd_menu_renderer.v",
+            REPO_ROOT / "project_04_gesture" / "rtl" / "inter9_uart_logger.v",
+            COMMON_RTL / "reset_synchronizer.v",
+            COMMON_RTL / "button_debounce.v",
+            COMMON_RTL / "lcd_hd44780_controller.v",
             COMMON_RTL / "uart_tx.v"
         ]
     }

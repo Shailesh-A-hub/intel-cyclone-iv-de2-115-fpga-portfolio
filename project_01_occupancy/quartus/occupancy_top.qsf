@@ -14,6 +14,7 @@ set_global_assignment -name VERILOG_FILE ../rtl/occupancy_top.v
 set_global_assignment -name VERILOG_FILE ../rtl/zone_fsm.v
 set_global_assignment -name VERILOG_FILE ../rtl/energy_decision_engine.v
 set_global_assignment -name VERILOG_FILE ../rtl/occupancy_uart_logger.v
+set_global_assignment -name VERILOG_FILE ../rtl/ir_direction_fsm.v
 set_global_assignment -name VERILOG_FILE ../../common/rtl/reset_synchronizer.v
 set_global_assignment -name VERILOG_FILE ../../common/rtl/button_debounce.v
 set_global_assignment -name VERILOG_FILE ../../common/rtl/timer_ms.v

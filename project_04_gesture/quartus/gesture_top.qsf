@@ -17,6 +17,9 @@ set_global_assignment -name VERILOG_FILE ../rtl/apds9960_i2c_driver.v
 set_global_assignment -name VERILOG_FILE ../rtl/gesture_decoder.v
 set_global_assignment -name VERILOG_FILE ../rtl/menu_fsm.v
 set_global_assignment -name VERILOG_FILE ../rtl/vga_menu_display.v
+set_global_assignment -name VERILOG_FILE ../rtl/ir_gesture_sequence_fsm.v
+set_global_assignment -name VERILOG_FILE ../rtl/lcd_menu_renderer.v
+set_global_assignment -name VERILOG_FILE ../rtl/inter9_uart_logger.v
 set_global_assignment -name VERILOG_FILE ../rtl/gesture_uart_logger.v
 set_global_assignment -name VERILOG_FILE ../../common/rtl/reset_synchronizer.v
 set_global_assignment -name VERILOG_FILE ../../common/rtl/button_debounce.v

@@ -1,32 +1,47 @@
 //=============================================================================
 // Module: gesture_top
-// Description: Top-Level Integration of the FPGA Gesture-Controlled Menu Interface
-//              for the Altera/Intel DE2-115 Development Board.
-//              Integrates:
-//                1. APDS-9960 I2C Master Driver with initialization sequence
-//                2. Spatial Gesture Classifier (UP, DOWN, LEFT, RIGHT, NEAR, FAR)
-//                3. Hierarchical Menu FSM with Submenu Navigation & Inactivity Timers
-//                4. HD44780 16x2 Character LCD Controller
-//                5. 640x480 @ 60Hz VGA Graphical Dashboard Controller
-//                6. 115200 Baud ASCII Serial Telemetry Logger
-//                7. 8x 7-Segment Displays, Status LEDs, and Synthetic Bench Modes
+// Project: Project 4 / Intermediate #9 — Gesture-Based Menu Navigation Interface
+// Target: Terasic DE2-115 (Cyclone IV EP4CE115F29C7)
+// Description: Top-level integration module for Intermediate #9 on DE2-115:
+//              - All 4 IR sensors (Left, Center, Right, Confirm) on JP5 GPIO[3:0]
+//              - 20ms debounce filtering x4
+//              - 2-step gesture recognition FSM (1.5s timeout):
+//                  * Left -> Center    = SELECT / Cursor Down
+//                  * Right -> Center   = BACK / Cursor Up
+//                  * Center -> Confirm = CONFIRM Selection
+//              - LEDG chase/progress driver:
+//                  * LEDG[0] = Step 1 detected
+//                  * LEDG[1] = Step 2 confirmed
+//                  * LEDG[2] = Submenu Active
+//                  * LEDG[3] = Manual Mode Active
+//              - Hierarchical 3-item menu engine on 16x2 Character LCD:
+//                  * Cursor '>' highlighting active row
+//                  * Submenus on confirm
+//                  * KEY[0] resets / returns home
+//              - CP2101 USB-to-UART telemetry logger at 9600 baud 8N1:
+//                  * Streams human-readable log lines to PC serial terminal
+//              - Mode Select Mux via SW[0]:
+//                  * SW[0]=0: Live IR gesture mode
+//                  * SW[0]=1: Manual pushbutton test mode (KEY[1..3])
+//              - 7-segment display of cursor position and submenu status
 // Standard: IEEE 1364-2001 Verilog
 //=============================================================================
 
 `timescale 1ns / 1ps
 
 module gesture_top #(
-    parameter integer CLK_FREQ_HZ = 50_000_000,
-    parameter integer I2C_FREQ_HZ = 100_000,
-    parameter integer SIMULATION  = 0
+    parameter integer CLK_FREQ_HZ   = 50_000_000,
+    parameter integer BAUD_RATE     = 9600,
+    parameter integer ACTIVE_LOW_IR = 1,
+    parameter integer SIMULATION    = 0
 )(
     // Clock & Asynchronous Reset
     input  wire        CLOCK_50,
-    input  wire [3:0]  KEY,               // KEY[0]: Reset_n, KEY[1]: Down, KEY[2]: Up, KEY[3]: Enter
-    input  wire [17:0] SW,                // SW[17]: Synthetic Mode, SW[16:14]: Gestures
+    input  wire [3:0]  KEY,               // KEY[0]: Reset/Home, KEY[1]: Down, KEY[2]: Up, KEY[3]: Confirm
+    input  wire [17:0] SW,                // SW[0]: 0=Gesture Mode, 1=Manual Mode
 
     // 16x2 Character LCD Physical Interface
-    inout  wire [7:0]  LCD_DATA,
+    output wire [7:0]  LCD_DATA,
     output wire        LCD_ON,
     output wire        LCD_BLON,
     output wire        LCD_RW,
@@ -51,424 +66,229 @@ module gesture_top #(
     output wire [17:0] LEDR,
     output wire [8:0]  LEDG,
 
-    // Serial RS-232 UART
+    // Serial RS-232 / CP2101 UART
     output wire        UART_TXD,
 
-    // External GPIO Header JP5 (APDS-9960 Breakout Board)
-    // GPIO[0]: SCL, GPIO[1]: SDA, GPIO[2]: INT_N
+    // External GPIO Header JP5
+    // GPIO[0]: Left, GPIO[1]: Center, GPIO[2]: Right, GPIO[3]: Confirm
     inout  wire [35:0] GPIO
 );
 
     // -------------------------------------------------------------------------
-    // Reset Synchronizer
+    // 1. Reset Synchronizer (Active-High internal rst)
     // -------------------------------------------------------------------------
-    wire sys_reset_n;
+    wire rst;
     reset_synchronizer #(
         .STAGES(2),
         .ACTIVE_LOW_IN(1),
-        .ACTIVE_LOW_OUT(1)
-    ) u_reset_sync (
+        .ACTIVE_LOW_OUT(0)
+    ) u_rst_sync (
         .clk(CLOCK_50),
         .async_rst_in(KEY[0]),
-        .sync_rst_out(sys_reset_n)
+        .sync_rst_out(rst)
     );
 
     // -------------------------------------------------------------------------
-    // Pushbutton Debounce with Simulation Acceleration
+    // 2. Debouncers for all 4 IR Sensors (GPIO[0..3])
     // -------------------------------------------------------------------------
-    localparam integer DB_CLK_FREQ = (SIMULATION) ? 10_000 : CLK_FREQ_HZ;
-    localparam integer DB_MS       = (SIMULATION) ? 1      : 20;
+    wire [3:0] debounced_ir;
 
-    wire btn_enter_pulse, btn_up_pulse, btn_down_pulse;
-
-    button_debounce #(
-        .CLK_FREQ_HZ(DB_CLK_FREQ),
-        .DEBOUNCE_MS(DB_MS),
-        .ACTIVE_LOW_IN(1)
-    ) u_db_enter (
-        .clk(CLOCK_50),
-        .rst(!sys_reset_n),
-        .btn_in(KEY[3]),
-        .debounced_state(),
-        .pressed_pulse(btn_enter_pulse),
-        .released_pulse()
-    );
-
-    button_debounce #(
-        .CLK_FREQ_HZ(DB_CLK_FREQ),
-        .DEBOUNCE_MS(DB_MS),
-        .ACTIVE_LOW_IN(1)
-    ) u_db_up (
-        .clk(CLOCK_50),
-        .rst(!sys_reset_n),
-        .btn_in(KEY[2]),
-        .debounced_state(),
-        .pressed_pulse(btn_up_pulse),
-        .released_pulse()
-    );
-
-    button_debounce #(
-        .CLK_FREQ_HZ(DB_CLK_FREQ),
-        .DEBOUNCE_MS(DB_MS),
-        .ACTIVE_LOW_IN(1)
-    ) u_db_down (
-        .clk(CLOCK_50),
-        .rst(!sys_reset_n),
-        .btn_in(KEY[1]),
-        .debounced_state(),
-        .pressed_pulse(btn_down_pulse),
-        .released_pulse()
-    );
-
-    // -------------------------------------------------------------------------
-    // Periodic Timers (1-Second Tick and 100ms Tick)
-    // -------------------------------------------------------------------------
-    wire tick_1sec, tick_100ms;
-    periodic_timer #(
-        .PERIOD(SIMULATION ? 50_000 : CLK_FREQ_HZ),
-        .WIDTH(32)
-    ) u_timer_1s (
-        .clk(CLOCK_50),
-        .rst(!sys_reset_n),
-        .enable(1'b1),
-        .tick_in(1'b1),
-        .tick_out(tick_1sec),
-        .count_val()
-    );
-
-    periodic_timer #(
-        .PERIOD(SIMULATION ? 5_000 : (CLK_FREQ_HZ / 10)),
-        .WIDTH(32)
-    ) u_timer_100ms (
-        .clk(CLOCK_50),
-        .rst(!sys_reset_n),
-        .enable(1'b1),
-        .tick_in(1'b1),
-        .tick_out(tick_100ms),
-        .count_val()
-    );
-
-    // -------------------------------------------------------------------------
-    // Synthetic Mode Selection & Input Multiplexing
-    // -------------------------------------------------------------------------
-    wire synth_mode_en = SW[17];
-    reg        synth_trigger;
-    reg  [2:0] synth_code;
-
-    // Edge detectors for switches SW[16:14] in synthetic mode
-    reg [2:0] sw_gesture_d;
-    always @(posedge CLOCK_50 or negedge sys_reset_n) begin
-        if (!sys_reset_n)
-            sw_gesture_d <= 3'b000;
-        else
-            sw_gesture_d <= SW[16:14];
-    end
-    wire sw_left_pulse = SW[16] & ~sw_gesture_d[2];
-    wire sw_near_pulse = SW[15] & ~sw_gesture_d[1];
-    wire sw_far_pulse  = SW[14] & ~sw_gesture_d[0];
-
-    always @(*) begin
-        if (btn_enter_pulse) begin
-            synth_trigger = 1'b1;
-            synth_code    = 3'd4; // RIGHT / ENTER
-        end else if (btn_up_pulse) begin
-            synth_trigger = 1'b1;
-            synth_code    = 3'd1; // UP
-        end else if (btn_down_pulse) begin
-            synth_trigger = 1'b1;
-            synth_code    = 3'd2; // DOWN
-        end else if (sw_left_pulse) begin
-            synth_trigger = 1'b1;
-            synth_code    = 3'd3; // LEFT / EXIT
-        end else if (sw_near_pulse) begin
-            synth_trigger = 1'b1;
-            synth_code    = 3'd5; // NEAR
-        end else if (sw_far_pulse) begin
-            synth_trigger = 1'b1;
-            synth_code    = 3'd6; // FAR
-        end else begin
-            synth_trigger = 1'b0;
-            synth_code    = 3'd0;
+    genvar i;
+    generate
+        for (i = 0; i < 4; i = i + 1) begin : gen_ir_debouncers
+            button_debounce #(
+                .CLK_FREQ_HZ(CLK_FREQ_HZ),
+                .DEBOUNCE_MS(SIMULATION ? 1 : 20),
+                .ACTIVE_LOW_IN(ACTIVE_LOW_IR)
+            ) u_db (
+                .clk(CLOCK_50),
+                .rst(rst),
+                .btn_in(GPIO[i]),
+                .debounced_state(debounced_ir[i]),
+                .pressed_pulse(),
+                .released_pulse()
+            );
         end
-    end
+    endgenerate
 
     // -------------------------------------------------------------------------
-    // APDS-9960 I2C Driver
+    // 3. Debouncers for Manual Pushbuttons (KEY[1..3])
     // -------------------------------------------------------------------------
-    wire        apds_init_done;
-    wire        apds_ready;
-    wire [7:0]  apds_id;
-    wire        apds_i2c_err;
-    wire [3:0]  apds_state_dbg;
-    wire [7:0]  apds_raw_u, apds_raw_d, apds_raw_l, apds_raw_r;
-    wire        apds_sample_valid;
+    wire btn_select_p, btn_back_p, btn_confirm_p;
 
-    // Physical I2C open-drain lines on JP5 (active when SW[15] is HIGH)
-    wire apds_scl, apds_sda;
-    assign GPIO[0] = (SW[15]) ? apds_scl : 1'bz;
-    assign GPIO[1] = (SW[15]) ? apds_sda : 1'bz;
-    wire apds_int_n = GPIO[2];
-
-    apds9960_i2c_driver #(
+    button_debounce #(
         .CLK_FREQ_HZ(CLK_FREQ_HZ),
-        .I2C_FREQ_HZ(I2C_FREQ_HZ),
-        .SIMULATION(SIMULATION)
-    ) u_apds_driver (
-        .clk(CLOCK_50),
-        .reset_n(sys_reset_n),
-        .init_done(apds_init_done),
-        .device_ready(apds_ready),
-        .device_id(apds_id),
-        .i2c_error(apds_i2c_err),
-        .state_dbg(apds_state_dbg),
-        .raw_u(apds_raw_u),
-        .raw_d(apds_raw_d),
-        .raw_l(apds_raw_l),
-        .raw_r(apds_raw_r),
-        .sample_valid(apds_sample_valid),
-        .apds_int_n(apds_int_n),
-        .scl(apds_scl),
-        .sda(apds_sda)
+        .DEBOUNCE_MS(SIMULATION ? 1 : 20),
+        .ACTIVE_LOW_IN(1)
+    ) u_db_btn1 (
+        .clk(CLOCK_50), .rst(rst), .btn_in(KEY[1]),
+        .debounced_state(), .pressed_pulse(btn_select_p), .released_pulse()
+    );
+
+    button_debounce #(
+        .CLK_FREQ_HZ(CLK_FREQ_HZ),
+        .DEBOUNCE_MS(SIMULATION ? 1 : 20),
+        .ACTIVE_LOW_IN(1)
+    ) u_db_btn2 (
+        .clk(CLOCK_50), .rst(rst), .btn_in(KEY[2]),
+        .debounced_state(), .pressed_pulse(btn_back_p), .released_pulse()
+    );
+
+    button_debounce #(
+        .CLK_FREQ_HZ(CLK_FREQ_HZ),
+        .DEBOUNCE_MS(SIMULATION ? 1 : 20),
+        .ACTIVE_LOW_IN(1)
+    ) u_db_btn3 (
+        .clk(CLOCK_50), .rst(rst), .btn_in(KEY[3]),
+        .debounced_state(), .pressed_pulse(btn_confirm_p), .released_pulse()
     );
 
     // -------------------------------------------------------------------------
-    // APDS-9960 Gesture Decoder Engine
+    // 4. Gesture Sequence FSM (2-Step Recognition with Timeout)
     // -------------------------------------------------------------------------
-    wire        apds_gesture_valid;
-    wire [2:0]  apds_gesture_code;
-    wire [31:0] apds_gesture_ascii;
-    wire [15:0] apds_gesture_counter;
-    wire        apds_gesture_active;
+    wire gesture_select_pulse;
+    wire gesture_back_pulse;
+    wire gesture_confirm_pulse;
+    wire step1_active;
+    wire step2_confirmed;
 
-    gesture_decoder #(
+    ir_gesture_sequence_fsm #(
         .CLK_FREQ_HZ(CLK_FREQ_HZ),
-        .REFRACTORY_MS(SIMULATION ? 1 : 250),
+        .TIMEOUT_MS(1500),
         .SIMULATION(SIMULATION)
-    ) u_gesture_dec (
+    ) u_gesture_fsm (
         .clk(CLOCK_50),
-        .reset_n(sys_reset_n),
-        .raw_u(synth_mode_en ? {4'd0, SW[11:8]} : apds_raw_u),
-        .raw_d(synth_mode_en ? {4'd0, SW[7:4]}  : apds_raw_d),
-        .raw_l(synth_mode_en ? {4'd0, SW[3:0]}  : apds_raw_l),
-        .raw_r(synth_mode_en ? {4'd0, SW[3:0]}  : apds_raw_r),
-        .sample_valid(apds_sample_valid),
-        .synth_mode(synth_mode_en),
-        .synth_trigger(synth_trigger),
-        .synth_gesture(synth_code),
-        .gesture_valid(apds_gesture_valid),
-        .gesture_code(apds_gesture_code),
-        .gesture_ascii(apds_gesture_ascii),
-        .gesture_count(apds_gesture_counter),
-        .gesture_active(apds_gesture_active),
-        .fsm_state_dbg()
+        .rst(rst),
+        .ir_l(debounced_ir[0]),
+        .ir_c(debounced_ir[1]),
+        .ir_r(debounced_ir[2]),
+        .ir_k(debounced_ir[3]),
+        .sw_manual_mode(SW[0]),
+        .btn_select_pulse(btn_select_p),
+        .btn_back_pulse(btn_back_p),
+        .btn_confirm_pulse(btn_confirm_p),
+        .gesture_select_pulse(gesture_select_pulse),
+        .gesture_back_pulse(gesture_back_pulse),
+        .gesture_confirm_pulse(gesture_confirm_pulse),
+        .step1_active(step1_active),
+        .step2_confirmed(step2_confirmed)
     );
 
     // -------------------------------------------------------------------------
-    // 4-Sensor Optical IR Cross-Array Gesture Decoder (Default Physical Mode)
-    // Sensor Mapping:
-    // GPIO[0]: IR_UP    (North Sensor)
-    // GPIO[1]: IR_DOWN  (South Sensor)
-    // GPIO[2]: IR_LEFT  (West Sensor)
-    // GPIO[3]: IR_RIGHT (East Sensor)
+    // 5. LCD Menu Renderer (Hierarchical 3-item Navigable Menu)
     // -------------------------------------------------------------------------
-    wire        ir_cross_valid;
-    wire [2:0]  ir_cross_code;
-    wire [31:0] ir_cross_ascii;
-    wire [15:0] ir_cross_counter;
-    wire [3:0]  ir_sensor_active;
-
-    ir_cross_gesture_decoder #(
-        .CLK_FREQ_HZ(CLK_FREQ_HZ),
-        .DEBOUNCE_MS(SIMULATION ? 1 : 10),
-        .SWIPE_WINDOW_MS(SIMULATION ? 5 : 400),
-        .REFRACTORY_MS(SIMULATION ? 2 : 250),
-        .ACTIVE_LOW(1),
-        .SIMULATION(SIMULATION)
-    ) u_ir_cross (
-        .clk(CLOCK_50),
-        .reset_n(sys_reset_n),
-        .ir_raw_u(GPIO[0]),
-        .ir_raw_d(GPIO[1]),
-        .ir_raw_l(GPIO[2]),
-        .ir_raw_r(GPIO[3]),
-        .gesture_valid(ir_cross_valid),
-        .gesture_code(ir_cross_code),
-        .gesture_ascii(ir_cross_ascii),
-        .gesture_count(ir_cross_counter),
-        .sensor_active_led(ir_sensor_active)
-    );
-
-    // Gesture Source Multiplexer:
-    // SW[15]=0: 4-Sensor Optical IR Cross Array (Default)
-    // SW[15]=1 or SW[17]=1: APDS-9960 I2C or Synthetic Mode
-    wire use_apds_or_synth = SW[15] || synth_mode_en;
-    wire        gesture_valid   = use_apds_or_synth ? apds_gesture_valid   : ir_cross_valid;
-    wire [2:0]  gesture_code    = use_apds_or_synth ? apds_gesture_code    : ir_cross_code;
-    wire [31:0] gesture_ascii   = use_apds_or_synth ? apds_gesture_ascii   : ir_cross_ascii;
-    wire [15:0] gesture_counter = use_apds_or_synth ? apds_gesture_counter : ir_cross_counter;
-    wire        gesture_active  = use_apds_or_synth ? apds_gesture_active  : (|ir_sensor_active);
-
-    // -------------------------------------------------------------------------
-    // Hierarchical Menu FSM
-    // -------------------------------------------------------------------------
-    wire [127:0] lcd_line1, lcd_line2;
-    wire [1:0]   current_menu;
+    wire [127:0] lcd_line1;
+    wire [127:0] lcd_line2;
+    wire [1:0]   cursor_pos;
     wire         in_submenu;
-    wire [1:0]   submenu_page;
     wire         menu_event_pulse;
-    wire [1:0]   setting_backlight;
-    wire         setting_beep_en;
-    wire [1:0]   setting_timeout_sel;
+    wire [2:0]   menu_event_type;
 
-    menu_fsm #(
-        .CLK_FREQ_HZ(CLK_FREQ_HZ),
-        .SIMULATION(SIMULATION)
-    ) u_menu_fsm (
+    lcd_menu_renderer u_menu_renderer (
         .clk(CLOCK_50),
-        .reset_n(sys_reset_n),
-        .gesture_valid(gesture_valid),
-        .gesture_code(gesture_code),
-        .last_gesture_ascii(gesture_ascii),
-        .raw_u(apds_raw_u),
-        .raw_d(apds_raw_d),
-        .raw_l(apds_raw_l),
-        .raw_r(apds_raw_r),
-        .gesture_counter(gesture_counter),
-        .tick_1sec(tick_1sec),
-        .lcd_line1(lcd_line1),
-        .lcd_line2(lcd_line2),
-        .current_menu(current_menu),
+        .rst(rst),
+        .select_pulse(gesture_select_pulse),
+        .back_pulse(gesture_back_pulse),
+        .confirm_pulse(gesture_confirm_pulse),
+        .reset_home_pulse(rst),
+        .raw_ir_sensors(debounced_ir),
+        .sw_manual_mode(SW[0]),
+        .cursor_pos(cursor_pos),
         .in_submenu(in_submenu),
-        .submenu_page(submenu_page),
-        .menu_event_pulse(menu_event_pulse),
-        .setting_backlight(setting_backlight),
-        .setting_beep_en(setting_beep_en),
-        .setting_timeout_sel(setting_timeout_sel)
+        .line1_text(lcd_line1),
+        .line2_text(lcd_line2),
+        .event_pulse(menu_event_pulse),
+        .event_type(menu_event_type)
     );
 
     // -------------------------------------------------------------------------
-    // HD44780 16x2 Character LCD Controller
+    // 6. HD44780 16x2 Character LCD Driver
     // -------------------------------------------------------------------------
     lcd_hd44780_controller #(
         .CLK_FREQ_HZ(CLK_FREQ_HZ)
     ) u_lcd (
-        .clk           (CLOCK_50),
-        .rst           (!sys_reset_n),
-        .line1_text    (lcd_line1),
-        .line2_text    (lcd_line2),
-        .refresh_strobe(tick_100ms),
-        .busy          (),
-        .lcd_data      (LCD_DATA),
-        .lcd_rw        (LCD_RW),
-        .lcd_en        (LCD_EN),
-        .lcd_rs        (LCD_RS),
-        .lcd_on        (LCD_ON),
-        .lcd_blon      (LCD_BLON)
+        .clk(CLOCK_50),
+        .rst(rst),
+        .line1_text(lcd_line1),
+        .line2_text(lcd_line2),
+        .refresh_strobe(1'b0),
+        .busy(),
+        .lcd_data(LCD_DATA),
+        .lcd_rw(LCD_RW),
+        .lcd_en(LCD_EN),
+        .lcd_rs(LCD_RS),
+        .lcd_on(LCD_ON),
+        .lcd_blon(LCD_BLON)
     );
 
     // -------------------------------------------------------------------------
-    // 640x480 @ 60Hz VGA Graphical Dashboard Controller
+    // 7. CP2101 UART Telemetry Logger (9600 Baud 8N1)
     // -------------------------------------------------------------------------
-    vga_menu_display u_vga_menu (
-        .clk_50(CLOCK_50),
-        .reset_n(sys_reset_n),
-        .current_menu(current_menu),
-        .in_submenu(in_submenu),
-        .submenu_page(submenu_page),
-        .setting_backlight(setting_backlight),
-        .setting_beep_en(setting_beep_en),
-        .setting_timeout_sel(setting_timeout_sel),
-        .last_gesture_code(gesture_code),
-        .gesture_counter(gesture_counter),
-        .raw_u(apds_raw_u),
-        .raw_d(apds_raw_d),
-        .raw_l(apds_raw_l),
-        .raw_r(apds_raw_r),
-        .vga_clk(VGA_CLK),
-        .vga_hs(VGA_HS),
-        .vga_vs(VGA_VS),
-        .vga_blank_n(VGA_BLANK_N),
-        .vga_sync_n(VGA_SYNC_N),
-        .vga_r(VGA_R),
-        .vga_g(VGA_G),
-        .vga_b(VGA_B)
-    );
-
-    // -------------------------------------------------------------------------
-    // 115200 Baud ASCII Telemetry Logger
-    // -------------------------------------------------------------------------
-    wire tx_active;
-    gesture_uart_logger #(
+    inter9_uart_logger #(
         .CLK_FREQ_HZ(CLK_FREQ_HZ),
-        .BAUD_RATE(115200)
+        .BAUD_RATE(BAUD_RATE)
     ) u_uart_log (
         .clk(CLOCK_50),
-        .reset_n(sys_reset_n),
-        .gesture_valid(gesture_valid),
-        .gesture_code(gesture_code),
-        .gesture_ascii(gesture_ascii),
-        .gesture_counter(gesture_counter),
-        .current_menu(current_menu),
-        .in_submenu(in_submenu),
-        .submenu_page(submenu_page),
-        .device_ready(apds_ready),
-        .i2c_error(apds_i2c_err),
-        .tick_1sec(tick_1sec),
-        .uart_txd(UART_TXD),
-        .tx_active_led(tx_active)
+        .rst(rst),
+        .gesture_select_pulse(gesture_select_pulse),
+        .gesture_back_pulse(gesture_back_pulse),
+        .gesture_confirm_pulse(gesture_confirm_pulse),
+        .menu_event_pulse(menu_event_pulse),
+        .menu_event_type(menu_event_type),
+        .cursor_pos(cursor_pos),
+        .uart_txd(UART_TXD)
     );
 
     // -------------------------------------------------------------------------
-    // 8x 7-Segment Displays
+    // 8. Visual LED Feedback & Chase Effect
     // -------------------------------------------------------------------------
-    // HEX7: Current Menu (0:STATUS, 1:SETTINGS, 2:SENSORS, 3:ABOUT)
-    seven_seg_hex u_hex7 (.hex_digit({2'b00, current_menu}), .blank(1'b0), .seg_out(HEX7));
-    // HEX6: Submenu active indicator ('S' or blank)
-    seven_seg_hex u_hex6 (.hex_digit({3'b000, in_submenu}), .blank(1'b0), .seg_out(HEX6));
-    // HEX5: Submenu Page (0, 1, 2)
-    seven_seg_hex u_hex5 (.hex_digit({2'b00, submenu_page}), .blank(1'b0), .seg_out(HEX5));
-    // HEX4: Last gesture code (1..6)
-    seven_seg_hex u_hex4 (.hex_digit({1'b0, gesture_code}), .blank(1'b0), .seg_out(HEX4));
-    // HEX3-0: Gesture Counter
-    seven_seg_dec u_hex3 (.dec_digit(gesture_counter[15:12]), .blank(1'b0), .show_dash(1'b0), .seg_out(HEX3));
-    seven_seg_dec u_hex2 (.dec_digit(gesture_counter[11:8]),  .blank(1'b0), .show_dash(1'b0), .seg_out(HEX2));
-    seven_seg_dec u_hex1 (.dec_digit(gesture_counter[7:4]),   .blank(1'b0), .show_dash(1'b0), .seg_out(HEX1));
-    seven_seg_dec u_hex0 (.dec_digit(gesture_counter[3:0]),   .blank(1'b0), .show_dash(1'b0), .seg_out(HEX0));
-
-    // -------------------------------------------------------------------------
-    // Status LEDs
-    // -------------------------------------------------------------------------
-    // LEDG:
-    // [0]: Sensor Ready, [1]: Init Done, [2]: Submenu Active, [3]: Beep Enabled
-    // [7:4]: Active Menu One-Hot, [8]: UART TX active
-    assign LEDG[0]   = use_apds_or_synth ? apds_ready : 1'b1;
-    assign LEDG[1]   = use_apds_or_synth ? apds_init_done : 1'b1;
+    assign LEDG[0]   = step1_active;
+    assign LEDG[1]   = step2_confirmed;
     assign LEDG[2]   = in_submenu;
-    assign LEDG[3]   = setting_beep_en;
-    assign LEDG[4]   = (current_menu == 2'd0);
-    assign LEDG[5]   = (current_menu == 2'd1);
-    assign LEDG[6]   = (current_menu == 2'd2);
-    assign LEDG[7]   = (current_menu == 2'd3);
-    assign LEDG[8]   = tx_active;
+    assign LEDG[3]   = SW[0];           // Manual mode indicator
+    assign LEDG[8:4] = 5'b0;
 
-    // LEDR:
-    // [0]: UP, [1]: DOWN, [2]: LEFT, [3]: RIGHT, [4]: NEAR, [5]: FAR
-    // [11:8]: IR sensor / Photodiode activity meter ([11]:R, [10]:L, [9]:D, [8]:U)
-    // [15]: APDS-9960 mode active, [16]: I2C Error, [17]: Synthetic mode active
-    assign LEDR[0]    = (gesture_code == 3'd1);
-    assign LEDR[1]    = (gesture_code == 3'd2);
-    assign LEDR[2]    = (gesture_code == 3'd3);
-    assign LEDR[3]    = (gesture_code == 3'd4);
-    assign LEDR[4]    = (gesture_code == 3'd5);
-    assign LEDR[5]    = (gesture_code == 3'd6);
-    assign LEDR[7:6]  = 2'b00;
-    assign LEDR[8]    = use_apds_or_synth ? (apds_raw_u > 8'd20) : ir_sensor_active[0];
-    assign LEDR[9]    = use_apds_or_synth ? (apds_raw_d > 8'd20) : ir_sensor_active[1];
-    assign LEDR[10]   = use_apds_or_synth ? (apds_raw_l > 8'd20) : ir_sensor_active[2];
-    assign LEDR[11]   = use_apds_or_synth ? (apds_raw_r > 8'd20) : ir_sensor_active[3];
-    assign LEDR[14:12]= 3'b000;
-    assign LEDR[15]   = SW[15];
-    assign LEDR[16]   = apds_i2c_err;
-    assign LEDR[17]   = synth_mode_en;
+    assign LEDR[3:0]   = debounced_ir;  // Show live debounced IR triggers
+    assign LEDR[16:4]  = 13'b0;
+    assign LEDR[17]    = SW[0];
+
+    // -------------------------------------------------------------------------
+    // 9. Seven-Segment Displays (HEX0..7)
+    // -------------------------------------------------------------------------
+    // HEX0: Current Menu Cursor (0, 1, 2)
+    seven_seg_dec u_hex0 (
+        .dec_digit({2'b00, cursor_pos}),
+        .blank(1'b0),
+        .show_dash(1'b0),
+        .seg_out(HEX0)
+    );
+
+    // HEX1: Submenu Flag (1 if inside submenu, 0 if root menu)
+    seven_seg_dec u_hex1 (
+        .dec_digit({3'b000, in_submenu}),
+        .blank(1'b0),
+        .show_dash(1'b0),
+        .seg_out(HEX1)
+    );
+
+    // HEX2..HEX7: Blank
+    assign HEX2 = 7'b111_1111;
+    assign HEX3 = 7'b111_1111;
+    assign HEX4 = 7'b111_1111;
+    assign HEX5 = 7'b111_1111;
+    assign HEX6 = 7'b111_1111;
+    assign HEX7 = 7'b111_1111;
+
+    // -------------------------------------------------------------------------
+    // 10. VGA Interface Safe Tie-Off
+    // -------------------------------------------------------------------------
+    assign VGA_CLK     = 1'b0;
+    assign VGA_HS      = 1'b1;
+    assign VGA_VS      = 1'b1;
+    assign VGA_BLANK_N = 1'b0;
+    assign VGA_SYNC_N  = 1'b0;
+    assign VGA_R       = 8'h00;
+    assign VGA_G       = 8'h00;
+    assign VGA_B       = 8'h00;
 
 endmodule

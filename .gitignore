@@ -22,6 +22,7 @@ hc_output/
 *.done
 *.smsg
 *.summary
+*.sld
 *.qws
 
 # ModelSim / QuestaSim artifacts

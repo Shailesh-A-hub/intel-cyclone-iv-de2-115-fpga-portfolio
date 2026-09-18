@@ -1,32 +1,39 @@
 //=============================================================================
 // Module: occupancy_top
-// Project: Project 1 - Multi-Zone Occupancy & Energy-Saving Decision Engine
+// Project: Project 1 / Basic #3 — IR-Based Occupancy / Entry-Exit Counter
 // Target: Terasic DE2-115 (Cyclone IV EP4CE115F29C7)
-// Description: Complete top-level integration. Instantiates 4 zone FSMs,
-//              energy decision engine, debouncers, timebases, 7-segment drivers,
-//              HD44780 LCD controller, PWM fan controller, and UART telemetry.
+// Description: Direct hardware implementation of Basic #3:
+//              - 2x Optical IR obstacle / break-beam sensors on GPIO_PIR_IN[1:0]
+//              - 20ms hardware debounce filtering
+//              - Direction detection FSM (1.0s timeout, entry vs exit)
+//              - Saturating Up/Down counter (00 to 99, never goes below 0)
+//              - HEX0 & HEX1 dual-digit BCD 7-segment display
+//              - Status logic (EMPTY vs OCCUPIED)
+//              - HD44780 16x2 Character LCD driver
+//              - LEDG trigger indicators (raw active, entry pulse, exit pulse)
 // Standard: IEEE 1364-2001 Verilog
 //=============================================================================
 
 `timescale 1ns / 1ps
 
 module occupancy_top #(
-    parameter integer CLK_FREQ_HZ = 50_000_000
+    parameter integer CLK_FREQ_HZ = 50_000_000,
+    parameter integer SIMULATION  = 0
 )(
     // Clocks and Resets
     input  wire        CLOCK_50,
-    input  wire [3:0]  KEY,             // KEY[0] = Reset (active low)
+    input  wire [3:0]  KEY,             // KEY[0] = Reset count (active low)
     // Slide Switches
-    input  wire [17:0] SW,              // SW[3:0] = Motion stand-ins, SW[4] = Dark mode, SW[17:16] = Timeout preset
+    input  wire [17:0] SW,              // SW[0]=Sim A, SW[1]=Sim B, SW[5]=Active-Low Invert
     // External GPIO JP5 inputs
-    input  wire [3:0]  GPIO_PIR_IN,     // External PIR sensors (JP5 Pins 1..4)
+    input  wire [3:0]  GPIO_PIR_IN,     // [0] = IR_A (Outer), [1] = IR_B (Inner)
     // Actuator Outputs
-    output wire        RELAY_LIGHTS,    // JP5 Pin 6
+    output wire        RELAY_LIGHTS,    // JP5 Pin 6 (Active when occupied)
     output wire        RELAY_HVAC,      // JP5 Pin 7
     output wire        RELAY_FANS,      // JP5 Pin 8
     // LEDs
-    output wire [17:0] LEDR,            // LEDR[3:0] = Raw Motion, LEDR[17] = Fault
-    output wire [8:0]  LEDG,            // LEDG[3:0] = Zone Occupied, LEDG[4]=Light, LEDG[5]=HVAC, LEDG[6]=Fan
+    output wire [17:0] LEDR,            // Raw Motion / Status
+    output wire [8:0]  LEDG,            // [0]=IR_A, [1]=IR_B, [2]=Entry, [3]=Exit, [4]=Occupied
     // 7-Segment Displays (Active-Low)
     output wire [6:0]  HEX0, HEX1, HEX2, HEX3, HEX4, HEX5, HEX6, HEX7,
     // 16x2 HD44780 LCD
@@ -52,196 +59,169 @@ module occupancy_top #(
         .sync_rst_out(rst)
     );
 
-    // 2. Timebase Generators (1 ms and 1 sec)
-    wire tick_1ms;
-    timer_ms #(.CLK_FREQ_HZ(CLK_FREQ_HZ)) u_timer_ms (
+    // 2. IR Sensor Input Selection & Polarity Normalization
+    // Standard IR obstacle sensors pull LOW when obstacle/beam is broken.
+    // Default active-low (SW[5]=0: Active-Low, SW[5]=1: Active-High)
+    wire ir_raw_a = (SW[5]) ? GPIO_PIR_IN[0] : ~GPIO_PIR_IN[0];
+    wire ir_raw_b = (SW[5]) ? GPIO_PIR_IN[1] : ~GPIO_PIR_IN[1];
+
+    // Combine with manual slide switches for bench simulation (SW[0] and SW[1])
+    wire eff_ir_a = ir_raw_a | SW[0];
+    wire eff_ir_b = ir_raw_b | SW[1];
+
+    // 3. Debounce Modules (for IR_A and IR_B)
+    wire debounced_ir_a;
+    wire debounced_ir_b;
+
+    button_debounce #(
+        .CLK_FREQ_HZ(CLK_FREQ_HZ),
+        .DEBOUNCE_MS(SIMULATION ? 1 : 20),
+        .ACTIVE_LOW_IN(0) // Already normalized to active-high
+    ) u_db_a (
         .clk(CLOCK_50),
         .rst(rst),
-        .tick_1ms(tick_1ms)
+        .btn_in(eff_ir_a),
+        .debounced_state(debounced_ir_a),
+        .pressed_pulse(),
+        .released_pulse()
     );
 
-    wire tick_1s;
-    timer_sec #(.CLK_FREQ_HZ(CLK_FREQ_HZ)) u_timer_sec (
+    button_debounce #(
+        .CLK_FREQ_HZ(CLK_FREQ_HZ),
+        .DEBOUNCE_MS(SIMULATION ? 1 : 20),
+        .ACTIVE_LOW_IN(0)
+    ) u_db_b (
         .clk(CLOCK_50),
         .rst(rst),
-        .tick_1sec(tick_1s)
+        .btn_in(eff_ir_b),
+        .debounced_state(debounced_ir_b),
+        .pressed_pulse(),
+        .released_pulse()
     );
 
-    // 3. Debouncers on Motion Inputs (combines switches and GPIO sensors)
-    // SW[5] = 1: Active-low Optical IR sensors (OUT=0 on detection)
-    // SW[5] = 0: Standard active-high PIR sensors (OUT=1 on detection)
-    wire [3:0] eff_gpio_motion = SW[5] ? (~GPIO_PIR_IN) : GPIO_PIR_IN;
-    wire [3:0] raw_motion = SW[3:0] | eff_gpio_motion;
-    wire [3:0] debounced_motion;
+    // 4. Direction Detection FSM
+    wire entry_pulse;
+    wire exit_pulse;
 
-    genvar z;
-    generate
-        for (z = 0; z < 4; z = z + 1) begin : gen_debouncers
-            button_debounce #(
-                .CLK_FREQ_HZ(CLK_FREQ_HZ),
-                .DEBOUNCE_MS(10),
-                .ACTIVE_LOW_IN(0) // Active-high motion inputs
-            ) u_deb (
-                .clk(CLOCK_50),
-                .rst(rst),
-                .btn_in(raw_motion[z]),
-                .debounced_state(debounced_motion[z]),
-                .pressed_pulse(),
-                .released_pulse()
-            );
+    ir_direction_fsm #(
+        .CLK_FREQ_HZ(CLK_FREQ_HZ),
+        .TIMEOUT_MS(SIMULATION ? 10 : 1000),
+        .SIMULATION(SIMULATION)
+    ) u_dir_fsm (
+        .clk(CLOCK_50),
+        .rst_n(!rst),
+        .ir_a_active(debounced_ir_a),
+        .ir_b_active(debounced_ir_b),
+        .entry_pulse(entry_pulse),
+        .exit_pulse(exit_pulse),
+        .state_out()
+    );
+
+    // 5. Saturating Up/Down Occupancy Counter (0 to 99)
+    reg [7:0] occupancy_count;
+
+    always @(posedge CLOCK_50 or posedge rst) begin
+        if (rst) begin
+            occupancy_count <= 8'd0;
+        end else begin
+            if (entry_pulse && !exit_pulse) begin
+                if (occupancy_count < 8'd99)
+                    occupancy_count <= occupancy_count + 1'b1;
+            end else if (exit_pulse && !entry_pulse) begin
+                if (occupancy_count > 8'd0)
+                    occupancy_count <= occupancy_count - 1'b1;
+                // Saturates at 0: never wraps to negative/255
+            end
         end
-    endgenerate
-
-    // Timeout duration selection via SW[17:16]
-    reg [15:0] timeout_preset;
-    always @(*) begin
-        case (SW[17:16])
-            2'b00: timeout_preset = 16'd5;   // 5 seconds (fast demo / bench test)
-            2'b01: timeout_preset = 16'd30;  // 30 seconds
-            2'b10: timeout_preset = 16'd60;  // 60 seconds
-            2'b11: timeout_preset = 16'd300; // 5 minutes
-        endcase
     end
 
-    // 4. Instantiate 4 Independent Zone FSMs
-    wire [3:0] zone_occupied;
-    wire [3:0] zone_light_req;
-    wire [3:0] zone_hvac_req;
-    wire [3:0] zone_fault;
-    wire [3:0] zone_changed;
-    wire [15:0] zone_timer [0:3];
+    // 6. Binary to BCD Conversion for 7-Segment Readout
+    wire [3:0] bcd_tens = occupancy_count / 10;
+    wire [3:0] bcd_ones = occupancy_count % 10;
 
-    generate
-        for (z = 0; z < 4; z = z + 1) begin : gen_zone_fsms
-            zone_fsm #(.ZONE_ID(z + 1)) u_zone (
-                .clk(CLOCK_50),
-                .rst(rst),
-                .motion_in(debounced_motion[z]),
-                .tick_1s(tick_1s),
-                .timeout_preset(timeout_preset),
-                .fault_timeout(16'd600), // 10 minutes stuck-high fault threshold
-                .state(),
-                .occupied_out(zone_occupied[z]),
-                .light_req(zone_light_req[z]),
-                .hvac_req(zone_hvac_req[z]),
-                .countdown_val(zone_timer[z]),
-                .state_changed(zone_changed[z]),
-                .sensor_fault(zone_fault[z])
-            );
+    seven_seg_dec u_seg_ones (
+        .dec_digit(bcd_ones),
+        .blank(1'b0),
+        .show_dash(1'b0),
+        .seg_out(HEX0)
+    );
+
+    seven_seg_dec u_seg_tens (
+        .dec_digit(bcd_tens),
+        .blank(1'b0),
+        .show_dash(1'b0),
+        .seg_out(HEX1)
+    );
+
+    // Blank unused 7-segment displays (Active-Low: 7'b111_1111)
+    assign HEX2 = 7'b111_1111;
+    assign HEX3 = 7'b111_1111;
+    assign HEX4 = 7'b111_1111;
+    assign HEX5 = 7'b111_1111;
+    assign HEX6 = 7'b111_1111;
+    assign HEX7 = 7'b111_1111;
+
+    // 7. Pulse Stretchers for Event LEDs (~300ms)
+    localparam integer STRETCH_CYCLES = (SIMULATION) ? 500 : (CLK_FREQ_HZ / 3);
+    reg [$clog2(STRETCH_CYCLES):0] entry_stretch_cnt, exit_stretch_cnt;
+
+    always @(posedge CLOCK_50 or posedge rst) begin
+        if (rst) begin
+            entry_stretch_cnt <= 0;
+            exit_stretch_cnt  <= 0;
+        end else begin
+            if (entry_pulse) entry_stretch_cnt <= STRETCH_CYCLES;
+            else if (entry_stretch_cnt > 0) entry_stretch_cnt <= entry_stretch_cnt - 1'b1;
+
+            if (exit_pulse) exit_stretch_cnt <= STRETCH_CYCLES;
+            else if (exit_stretch_cnt > 0) exit_stretch_cnt <= exit_stretch_cnt - 1'b1;
         end
-    endgenerate
+    end
 
-    // 5. Energy Decision Engine
-    wire [3:0]  zone_lights;
-    wire        main_lighting_relay;
-    wire        hvac_relay;
-    wire [1:0]  hvac_level;
-    wire        fan_relay;
-    wire [7:0]  fan_pwm_duty;
-    wire [2:0]  active_zones;
-    wire [15:0] energy_wh;
-    wire        counter_overflow;
+    wire is_occupied = (occupancy_count > 8'd0);
 
-    energy_decision_engine u_decision (
-        .clk(CLOCK_50),
-        .rst(rst),
-        .zone_occupied(zone_occupied),
-        .zone_light_req(zone_light_req),
-        .zone_hvac_req(zone_hvac_req),
-        .ambient_dark(SW[4]), // SW[4] = 1 for dark/night mode
-        .tick_1s(tick_1s),
-        .zone_lights(zone_lights),
-        .main_lighting_relay(main_lighting_relay),
-        .hvac_relay(hvac_relay),
-        .hvac_level(hvac_level),
-        .fan_relay(fan_relay),
-        .fan_pwm_duty(fan_pwm_duty),
-        .active_zone_count(active_zones),
-        .energy_saved_wh(energy_wh),
-        .counter_overflow(counter_overflow)
-    );
+    assign LEDG[0]   = debounced_ir_a;
+    assign LEDG[1]   = debounced_ir_b;
+    assign LEDG[2]   = (entry_stretch_cnt > 0);
+    assign LEDG[3]   = (exit_stretch_cnt > 0);
+    assign LEDG[4]   = is_occupied;
+    assign LEDG[8:5] = 4'b0000;
 
-    // 6. Fan Speed PWM Generator
-    wire fan_pwm_out;
-    pwm_generator #(.RESOLUTION_BITS(8)) u_fan_pwm (
-        .clk(CLOCK_50),
-        .rst(rst),
-        .enable(fan_relay),
-        .prescaler(16'd195), // ~1 kHz PWM frequency
-        .period(8'd255),
-        .duty_cycle(fan_pwm_duty),
-        .pwm_out(fan_pwm_out),
-        .cycle_end()
-    );
+    assign LEDR[0]    = debounced_ir_a;
+    assign LEDR[1]    = debounced_ir_b;
+    assign LEDR[17:2] = 16'd0;
 
-    // Physical Actuator Relay Assignments
-    assign RELAY_LIGHTS = main_lighting_relay;
-    assign RELAY_HVAC   = hvac_relay;
-    assign RELAY_FANS   = fan_pwm_out;
+    assign RELAY_LIGHTS = is_occupied;
+    assign RELAY_HVAC   = is_occupied;
+    assign RELAY_FANS   = is_occupied;
 
-    // LED Indicator Assignments
-    assign LEDR[3:0]   = raw_motion;
-    assign LEDR[16:4]  = 13'b0;
-    assign LEDR[17]    = |zone_fault | counter_overflow; // Fault indicator
+    // 8. Status Logic & 16x2 HD44780 Character LCD
+    wire [7:0] ascii_tens = 8'h30 + bcd_tens;
+    wire [7:0] ascii_ones = 8'h30 + bcd_ones;
 
-    assign LEDG[3:0]   = zone_occupied;
-    assign LEDG[4]     = main_lighting_relay;
-    assign LEDG[5]     = hvac_relay;
-    assign LEDG[6]     = fan_relay;
-    assign LEDG[8:7]   = 2'b00;
-
-    // 7. 7-Segment Displays:
-    // HEX3..HEX0: Energy saved in Watt-hours (4-digit decimal / hex)
-    seven_seg_hex u_hex0 (.hex_digit(energy_wh[3:0]),   .blank(1'b0), .seg_out(HEX0));
-    seven_seg_hex u_hex1 (.hex_digit(energy_wh[7:4]),   .blank(1'b0), .seg_out(HEX1));
-    seven_seg_hex u_hex2 (.hex_digit(energy_wh[11:8]),  .blank(1'b0), .seg_out(HEX2));
-    seven_seg_hex u_hex3 (.hex_digit(energy_wh[15:12]), .blank(1'b0), .seg_out(HEX3));
-
-    // HEX5..HEX4: HVAC Stage ("H0", "H1", "H2", "H3")
-    // 'H' pattern on HEX5 = 7'b000_1001 (active-low segments {g,f,e,d,c,b,a} for 'H' = 0x09)
-    assign HEX5 = 7'b000_1001;
-    seven_seg_dec u_hex4 (.dec_digit({2'b00, hvac_level}), .blank(1'b0), .show_dash(1'b0), .seg_out(HEX4));
-
-    // HEX7..HEX6: Active zones count ("Z0" to "Z4")
-    // 'Z' (looks like 2) on HEX7 = 7'b010_0100
-    assign HEX7 = 7'b010_0100;
-    seven_seg_dec u_hex6 (.dec_digit({1'b0, active_zones}), .blank(1'b0), .show_dash(1'b0), .seg_out(HEX6));
-
-    // 8. 16x2 HD44780 LCD Display Controller
     reg [127:0] lcd_line1;
     reg [127:0] lcd_line2;
-    wire [7:0] ascii_wh0 = (energy_wh[3:0] < 10) ? (8'h30 + energy_wh[3:0]) : (8'h41 + energy_wh[3:0] - 10);
-    wire [7:0] ascii_wh1 = (energy_wh[7:4] < 10) ? (8'h30 + energy_wh[7:4]) : (8'h41 + energy_wh[7:4] - 10);
 
     always @(*) begin
-        // Line 1: "ZONES: Z1 Z2 -- --"
-        lcd_line1 = {
-            "ZONES: ",
-            zone_occupied[0] ? "Z1 " : "-- ",
-            zone_occupied[1] ? "Z2 " : "-- ",
-            zone_occupied[2] ? "Z3 " : "-- ",
-            zone_occupied[3] ? "Z4"  : "--"
-        };
+        // Line 1: "Zone Status:    "
+        lcd_line1 = "Zone Status:    ";
 
-        // Line 2: "SAVED: 0000 Wh  "
-        lcd_line2 = {
-            "SAVED: ",
-            ascii_wh1,
-            ascii_wh0,
-            " Wh   H:",
-            hvac_level == 2'b00 ? "0" :
-            hvac_level == 2'b01 ? "1" :
-            hvac_level == 2'b10 ? "2" : "3",
-            " "
-        };
+        // Line 2: "EMPTY           " vs "OCCUPIED (XX)   "
+        if (!is_occupied) begin
+            lcd_line2 = "EMPTY           ";
+        end else begin
+            lcd_line2 = {"OCCUPIED (", ascii_tens, ascii_ones, ")   "};
+        end
     end
 
-    lcd_hd44780_controller #(.CLK_FREQ_HZ(CLK_FREQ_HZ)) u_lcd (
+    lcd_hd44780_controller #(
+        .CLK_FREQ_HZ(CLK_FREQ_HZ)
+    ) u_lcd (
         .clk(CLOCK_50),
         .rst(rst),
         .line1_text(lcd_line1),
         .line2_text(lcd_line2),
-        .refresh_strobe(tick_1s), // Update screen once per second
+        .refresh_strobe(1'b0),
         .busy(),
         .lcd_data(LCD_DATA),
         .lcd_rw(LCD_RW),
@@ -251,19 +231,7 @@ module occupancy_top #(
         .lcd_blon(LCD_BLON)
     );
 
-    // 9. UART Telemetry Logger (115200 baud)
-    wire send_uart = tick_1s | (|zone_changed);
-    occupancy_uart_logger #(
-        .CLK_FREQ_HZ(CLK_FREQ_HZ),
-        .BAUD_RATE(115200)
-    ) u_logger (
-        .clk(CLOCK_50),
-        .rst(rst),
-        .send_trigger(send_uart),
-        .zone_occupied(zone_occupied),
-        .hvac_level(hvac_level),
-        .energy_wh(energy_wh),
-        .uart_txd(UART_TXD)
-    );
+    // 9. UART Telemetry (Idle High)
+    assign UART_TXD = 1'b1;
 
 endmodule
