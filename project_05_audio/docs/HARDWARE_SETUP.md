@@ -30,15 +30,29 @@ The DE2-115 contains three 3.5mm audio jacks connected directly to the Wolfson W
 
 ### 3.2 Slide Switches (`SW[17:0]`)
 - `SW[17]` (`PIN_Y23`):
-  - `0`: **Live Hardware Audio Mode** (Streams real audio from Line-In via Wolfson WM8731).
-  - `1`: **Synthetic DDS Simulation Mode** (Internal FPGA tone generator enabled).
-- `SW[16:14]` (`PIN_Y24`, `PIN_AA22`, `PIN_AA23`): Synthetic Test Tone Select:
+  - `0`: **Live Hardware Audio Mode** (Streams real audio from Line-In via Wolfson WM8731 when `SW[13]=0`).
+  - `1`: **Synthetic DDS Simulation Mode** (Internal FPGA tone generator enabled when `SW[13]=0`).
+- `SW[16:14]` (`PIN_Y24`, `PIN_AA22`, `PIN_AA23`): Synthetic Test Tone Select (when `SW[17]=1, SW[13]=0`):
   - `3'b000` (0): Silence (Zero Amplitude)
   - `3'b001` (1): 1.0 kHz Pure Sine Wave
   - `3'b010` (2): 2.0 kHz Pure Sine Wave
   - `3'b011` (3): 5.0 kHz Pure Sine Wave
   - `3'b100` (4): White Noise (Galois LFSR)
-- `SW[13:0]`: Reserved / Display Gain Adjustments.
+- `SW[13]` (`PIN_AA24`):
+  - `0`: Normal Audio Source (`SW[17]` selects Line-In vs DDS Synthesizer).
+  - `1`: **CP2101 UART Audio Streaming Mode** (FPGA receives 8-bit PCM samples over JP5 Pin 2 from laptop).
+- `SW[12:0]`: Reserved / Display Gain Adjustments.
+
+---
+
+### 3.3 CP2101 USB-to-UART Bridge Connections (JP5 Header)
+
+| CP2101 Pin | DE2-115 Header Pin | FPGA Pin | Signal / Function |
+|---|---|---|---|
+| **RXD** | JP5 Pin 1 | `PIN_AB22` | FPGA UART TX $\rightarrow$ CP2101 RX (115200 Baud Telemetry + VU Meter) |
+| **TXD** | JP5 Pin 2 | `PIN_AC15` | CP2101 TX $\rightarrow$ FPGA UART RX (PCM Audio Streaming into FPGA) |
+| **GND** | JP5 Pin 12 | `GND` | Common Ground Reference |
+| **3V3/5V** | Not connected | — | Power supplied via Laptop USB |
 
 ---
 

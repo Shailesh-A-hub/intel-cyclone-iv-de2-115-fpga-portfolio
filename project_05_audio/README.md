@@ -102,8 +102,31 @@ python project_05_audio/python/audio_dsp_ref.py
 - **Primary Clock:** 50 MHz Oscillator (`PIN_Y2`)
 - **Reset:** Active-Low Pushbutton `KEY[0]` (`PIN_M23`)
 - **Reconfigure Codec:** Pushbutton `KEY[1]` (`PIN_M21`)
-- **Synthetic Audio Mode:** Slide Switch `SW[17]` (`PIN_Y23`)
+- **UART Audio Stream Select:** Slide Switch `SW[13]` (`PIN_AA24`) (`1` = CP2101 UART Stream, `0` = Line-In / DDS)
+- **Synthetic Audio Mode:** Slide Switch `SW[17]` (`PIN_Y23`) (`1` = Internal DDS Sine/Noise, `0` = Live 3.5mm Line-In)
 - **Synthetic Tone Select:** `SW[16:14]` (`000`: Silence, `001`: 1kHz, `010`: 2kHz, `011`: 5kHz, `100`: Noise)
+- **CP2101 USB-to-UART Bridge (JP5 Expansion Header):**
+  - **JP5 Pin 1 (`PIN_AB22`):** FPGA UART TX $\rightarrow$ CP2101 RXD (115200 Baud ASCII Telemetry & VU meter)
+  - **JP5 Pin 2 (`PIN_AC15`):** FPGA UART RX $\leftarrow$ CP2101 TXD (Optional 8-bit PCM audio stream)
+  - **JP5 Pin 12:** Ground (GND)
+- **Onboard DB9 RS-232:** `UART_TXD` (`PIN_G9`) transmits identical 115200 baud telemetry in parallel
 - **VGA Output:** 15-pin D-Sub connector to monitor (640x480 @ 60Hz)
-- **Audio In:** Line-In 3.5mm jack (blue) connected to audio source
+- **Audio In:** Line-In 3.5mm jack (blue) connected to laptop audio / phone
 - **Audio Out:** Line-Out 3.5mm jack (green) connected to headphones/speakers
+
+---
+
+## 5. Laptop & Serial Telemetry (No VGA Monitor Required)
+
+If an external VGA monitor is not connected, full real-time telemetry can be viewed directly on your PC/laptop via the CP2101 module or serial terminal:
+```bash
+# 1. View live animated terminal ASCII VU meter and classification:
+python tools/scripts/visualize_spectrum_cp2101.py --port COM3
+
+# 2. Or stream custom audio/sweep tones from laptop directly into the FPGA:
+python tools/scripts/stream_audio_cp2101.py --port COM3 --sweep
+```
+Terminal format (10 Hz rate-limited):
+```
+[AUDIO] CLS=VOIC BIN=012 MAG=04820 [######..........]
+```

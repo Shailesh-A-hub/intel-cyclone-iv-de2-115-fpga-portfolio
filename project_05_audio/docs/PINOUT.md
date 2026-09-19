@@ -18,7 +18,7 @@
 | `SW[0]` | `PIN_AB28` | Input | 3.3-V LVTTL | Slide Switch 0 | Display Gain Bit 0 |
 | `SW[1]` | `PIN_AC28` | Input | 3.3-V LVTTL | Slide Switch 1 | Display Gain Bit 1 |
 | `SW[2]` | `PIN_AC27` | Input | 3.3-V LVTTL | Slide Switch 2 | Display Gain Bit 2 |
-| `SW[3]` | `PIN_AD27` | Input | 3.3-V LVTTL | Slide Switch 3 | Display Gain Bit 3 |
+| `SW[13]` | `PIN_AA24` | Input | 3.3-V LVTTL | Slide Switch 13 | UART Audio Stream Select (1=UART, 0=Line-In/DDS) |
 | `SW[14]` | `PIN_AA23` | Input | 3.3-V LVTTL | Slide Switch 14 | Tone Select Bit 0 |
 | `SW[15]` | `PIN_AA22` | Input | 3.3-V LVTTL | Slide Switch 15 | Tone Select Bit 1 |
 | `SW[16]` | `PIN_Y24` | Input | 3.3-V LVTTL | Slide Switch 16 | Tone Select Bit 2 |
@@ -76,4 +76,6 @@
 | `HEX0[6:0]` .. `HEX7[6:0]` | Pins detailed in `.qsf` | Output | 2.5 V / 3.3-V | 8x 7-Segment Numerical Displays |
 | `LEDR[17:0]` | `PIN_H15` .. `PIN_G19` | Output | 2.5 V | 18x Red LEDs (VU Meter Bar) |
 | `LEDG[8:0]` | `PIN_F17` .. `PIN_E21` | Output | 2.5 V | 9x Green LEDs (System & Class Flags) |
-| `UART_TXD` | `PIN_G9` | Output | 3.3-V LVTTL | RS-232 UART Serial Telemetry Transmit |
+| `UART_TXD` | `PIN_G9` | Output | 3.3-V LVTTL | Onboard DB9 RS-232 UART Serial Telemetry Transmit |
+| `UART_TXD_OUT` | `PIN_AB22` | Output | 3.3-V LVTTL | JP5 Pin 1 $\rightarrow$ CP2101 RXD (ASCII Telemetry + VU Meter) |
+| `UART_RXD_IN` | `PIN_AC15` | Input | 3.3-V LVTTL | JP5 Pin 2 $\leftarrow$ CP2101 TXD (PCM Audio Stream Receiver) |
