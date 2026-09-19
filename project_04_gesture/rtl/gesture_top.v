@@ -227,7 +227,14 @@ module gesture_top #(
 
     // -------------------------------------------------------------------------
     // 6. HD44780 16x2 Character LCD Driver
-    // -------------------------------------------------------------------------
+    // 10 Hz periodic display refresh tick + instant update on any gesture trigger
+    reg [22:0] lcd_refresh_cnt;
+    wire lcd_refresh_strobe = (lcd_refresh_cnt >= 23'd5_000_000 - 1);
+    always @(posedge CLOCK_50) begin
+        if (rst || lcd_refresh_strobe) lcd_refresh_cnt <= 23'd0;
+        else lcd_refresh_cnt <= lcd_refresh_cnt + 1'b1;
+    end
+
     lcd_hd44780_controller #(
         .CLK_FREQ_HZ(CLK_FREQ_HZ)
     ) u_lcd (
@@ -235,7 +242,7 @@ module gesture_top #(
         .rst(rst),
         .line1_text(final_lcd_line1),
         .line2_text(final_lcd_line2),
-        .refresh_strobe(1'b0),
+        .refresh_strobe(lcd_refresh_strobe || active_gesture_valid),
         .busy(),
         .lcd_data(LCD_DATA),
         .lcd_rw(LCD_RW),

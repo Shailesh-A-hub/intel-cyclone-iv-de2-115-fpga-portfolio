@@ -77,20 +77,26 @@ module lcd_hd44780_controller #(
     reg [7:0] cmd_byte;
     reg       cmd_rs;
 
+    reg [127:0] prev_line1, prev_line2;
+    reg [19:0]  auto_refresh_cnt;
+
     always @(posedge clk) begin
         if (rst) begin
-            state        <= S_POWERON_WAIT;
-            return_state <= S_IDLE;
-            busy         <= 1'b1;
-            lcd_rw       <= 1'b0;
-            lcd_en       <= 1'b0;
-            lcd_rs       <= 1'b0;
-            lcd_data     <= 8'h00;
-            delay_us     <= 20'd50_000; // 50 ms power-on delay
-            char_idx     <= 4'd0;
-            exec_step    <= 3'd0;
-            cmd_byte     <= 8'h00;
-            cmd_rs       <= 1'b0;
+            state            <= S_POWERON_WAIT;
+            return_state     <= S_IDLE;
+            busy             <= 1'b1;
+            lcd_rw           <= 1'b0;
+            lcd_en           <= 1'b0;
+            lcd_rs           <= 1'b0;
+            lcd_data         <= 8'h00;
+            delay_us         <= 20'd50_000; // 50 ms power-on delay
+            char_idx         <= 4'd0;
+            exec_step        <= 3'd0;
+            cmd_byte         <= 8'h00;
+            cmd_rs           <= 1'b0;
+            prev_line1       <= 128'd0;
+            prev_line2       <= 128'd0;
+            auto_refresh_cnt <= 20'd0;
         end else if (tick_1us) begin
             case (state)
                 S_POWERON_WAIT: begin
@@ -155,16 +161,23 @@ module lcd_hd44780_controller #(
                     cmd_byte     <= 8'h06;
                     cmd_rs       <= 1'b0;
                     delay_us     <= 20'd50;
-                    return_state <= S_IDLE;
+                    // Immediately transition to writing lines as soon as init completes!
+                    return_state <= S_SET_LINE1;
                     state        <= S_EXEC_CYCLE;
                 end
 
                 S_IDLE: begin
                     busy <= 1'b0;
-                    if (refresh_strobe) begin
-                        busy     <= 1'b1;
-                        char_idx <= 4'd0;
-                        state    <= S_SET_LINE1;
+                    // Auto-refresh when text changes, on external strobe, or periodically every 50ms
+                    if (refresh_strobe || (line1_text != prev_line1) || (line2_text != prev_line2) || (auto_refresh_cnt >= 20'd50_000)) begin
+                        busy             <= 1'b1;
+                        char_idx         <= 4'd0;
+                        prev_line1       <= line1_text;
+                        prev_line2       <= line2_text;
+                        auto_refresh_cnt <= 20'd0;
+                        state            <= S_SET_LINE1;
+                    end else begin
+                        auto_refresh_cnt <= auto_refresh_cnt + 1'b1;
                     end
                 end
 
