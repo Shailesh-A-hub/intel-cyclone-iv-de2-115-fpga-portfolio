@@ -1,9 +1,11 @@
 //=============================================================================
 // Module: audio_uart_logger
+// Project: Project 5 — Real-Time Audio Voice Spectrum Analyzer
 // Description: Real-time 115200 baud ASCII serial telemetry logger for the
-//              Audio Spectrum Analyzer. Transmits formatted log packets containing
-//              audio classification, peak frequency bin index, peak magnitude,
-//              and total spectral energy.
+//              Audio Spectrum Analyzer. Outputs live audio classification,
+//              dominant frequency bin index, peak magnitude, and a 16-segment
+//              animated ASCII VU/equalizer meter:
+//              "[AUDIO] CLS=VOIC BIN=012 MAG=04820 [######..........]\r\n"
 // Standard: IEEE 1364-2001 Verilog
 //=============================================================================
 
@@ -23,7 +25,7 @@ module audio_uart_logger #(
     input  wire [7:0]  peak_bin_index,
     input  wire [15:0] peak_magnitude,
     input  wire [27:0] total_energy,
-    input  wire        tick_1sec,
+    input  wire        tick_log,           // Periodic rate ticker (e.g. 100ms / 10Hz)
 
     // Serial physical line
     output wire        uart_txd,
@@ -49,10 +51,10 @@ module audio_uart_logger #(
         .tx_line(uart_txd)
     );
 
-    // Telemetry Buffer (48 bytes)
-    reg [7:0] log_buffer [0:47];
-    reg [5:0] log_len;
-    reg [5:0] tx_idx;
+    // Telemetry Buffer (64 bytes)
+    reg [7:0] log_buffer [0:63];
+    reg [6:0] log_len;
+    reg [6:0] tx_idx;
 
     // FSM States
     localparam [1:0]
@@ -69,6 +71,10 @@ module audio_uart_logger #(
         end
     endfunction
 
+    // 16-level audio bar graph calculator
+    wire [4:0] bar_fill = (peak_magnitude >= 16'd32000) ? 5'd16 : 
+                          (peak_magnitude[15:11] + (|peak_magnitude[10:8]));
+
     reg pending_log;
 
     always @(posedge clk) begin
@@ -76,23 +82,24 @@ module audio_uart_logger #(
             state         <= ST_IDLE;
             tx_start      <= 1'b0;
             tx_data       <= 8'd0;
-            tx_idx        <= 6'd0;
-            log_len       <= 6'd0;
+            tx_idx        <= 7'd0;
+            log_len       <= 7'd0;
             tx_active_led <= 1'b0;
             pending_log   <= 1'b0;
         end else begin
             tx_start <= 1'b0; // Default pulse
 
-            if (frame_valid || tick_1sec)
+            if (tick_log)
                 pending_log <= 1'b1;
 
             case (state)
                 ST_IDLE: begin
-                    tx_idx <= 6'd0;
-                    if (pending_log) begin
+                    tx_idx <= 7'd0;
+                    if (pending_log && !tx_busy) begin
                         pending_log   <= 1'b0;
                         tx_active_led <= 1'b1;
-                        // Format: "[AUDIO] CLS=XXXX BIN=XXX MAG=XXXXX TOT=XXXXX\r\n" (43 chars)
+
+                        // Format: "[AUDIO] CLS=XXXX BIN=XXX MAG=XXXXX [################]\r\n" (55 chars)
                         log_buffer[0]  <= "["; log_buffer[1]  <= "A"; log_buffer[2]  <= "U"; log_buffer[3]  <= "D";
                         log_buffer[4]  <= "I"; log_buffer[5]  <= "O"; log_buffer[6]  <= "]"; log_buffer[7]  <= " ";
                         log_buffer[8]  <= "C"; log_buffer[9]  <= "L"; log_buffer[10] <= "S"; log_buffer[11] <= "=";
@@ -112,15 +119,27 @@ module audio_uart_logger #(
                         log_buffer[31] <= dec_char((peak_magnitude / 100) % 10);
                         log_buffer[32] <= dec_char((peak_magnitude / 10) % 10);
                         log_buffer[33] <= dec_char(peak_magnitude % 10);
-                        log_buffer[34] <= " "; log_buffer[35] <= "T"; log_buffer[36] <= "O"; log_buffer[37] <= "T";
-                        log_buffer[38] <= "=";
-                        log_buffer[39] <= dec_char((total_energy / 1000) % 10);
-                        log_buffer[40] <= dec_char((total_energy / 100) % 10);
-                        log_buffer[41] <= dec_char((total_energy / 10) % 10);
-                        log_buffer[42] <= dec_char(total_energy % 10);
-                        log_buffer[43] <= 8'h0D; // \r
-                        log_buffer[44] <= 8'h0A; // \n
-                        log_len        <= 6'd45;
+                        log_buffer[34] <= " "; log_buffer[35] <= "[";
+                        log_buffer[36] <= (bar_fill > 5'd0)  ? "#" : ".";
+                        log_buffer[37] <= (bar_fill > 5'd1)  ? "#" : ".";
+                        log_buffer[38] <= (bar_fill > 5'd2)  ? "#" : ".";
+                        log_buffer[39] <= (bar_fill > 5'd3)  ? "#" : ".";
+                        log_buffer[40] <= (bar_fill > 5'd4)  ? "#" : ".";
+                        log_buffer[41] <= (bar_fill > 5'd5)  ? "#" : ".";
+                        log_buffer[42] <= (bar_fill > 5'd6)  ? "#" : ".";
+                        log_buffer[43] <= (bar_fill > 5'd7)  ? "#" : ".";
+                        log_buffer[44] <= (bar_fill > 5'd8)  ? "#" : ".";
+                        log_buffer[45] <= (bar_fill > 5'd9)  ? "#" : ".";
+                        log_buffer[46] <= (bar_fill > 5'd10) ? "#" : ".";
+                        log_buffer[47] <= (bar_fill > 5'd11) ? "#" : ".";
+                        log_buffer[48] <= (bar_fill > 5'd12) ? "#" : ".";
+                        log_buffer[49] <= (bar_fill > 5'd13) ? "#" : ".";
+                        log_buffer[50] <= (bar_fill > 5'd14) ? "#" : ".";
+                        log_buffer[51] <= (bar_fill > 5'd15) ? "#" : ".";
+                        log_buffer[52] <= "]";
+                        log_buffer[53] <= 8'h0D; // \r
+                        log_buffer[54] <= 8'h0A; // \n
+                        log_len        <= 7'd55;
                         state          <= ST_SEND;
                     end else begin
                         tx_active_led <= 1'b0;

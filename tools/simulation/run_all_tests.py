@@ -123,7 +123,8 @@ TEST_SUITES = [
             COMMON_RTL / "lcd_hd44780_controller.v",
             COMMON_RTL / "seven_seg_hex.v",
             COMMON_RTL / "seven_seg_dec.v",
-            COMMON_RTL / "uart_tx.v"
+            COMMON_RTL / "uart_tx.v",
+            COMMON_RTL / "uart_rx.v"
         ]
     },
     {

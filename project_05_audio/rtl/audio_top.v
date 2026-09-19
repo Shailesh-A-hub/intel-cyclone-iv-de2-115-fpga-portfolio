@@ -67,8 +67,10 @@ module audio_top #(
     output wire [17:0] LEDR,
     output wire [8:0]  LEDG,
 
-    // RS-232 UART Telemetry
-    output wire        UART_TXD
+    // RS-232 & CP2101 UART Telemetry Interface
+    output wire        UART_TXD,          // PIN_G9 (Onboard DB9 connector)
+    output wire        UART_TXD_OUT,      // PIN_AB22 (JP5 Pin 1 -> CP2101 RX)
+    input  wire        UART_RXD_IN        // PIN_AC15 (JP5 Pin 2 <- CP2101 TX)
 );
 
     // -------------------------------------------------------------------------
@@ -223,10 +225,38 @@ module audio_top #(
         .sample_tick(dds_sample_tick)
     );
 
-    // Audio Input Multiplexer (Physical I2S vs Synthetic DDS)
+    // -------------------------------------------------------------------------
+    // CP2101 UART Audio Receiver (Optional PC Streaming over JP5 Pin 2)
+    // -------------------------------------------------------------------------
+    wire [7:0] uart_rx_byte;
+    wire       uart_rx_valid;
+    uart_rx #(
+        .CLK_FREQ_HZ(CLK_FREQ_HZ),
+        .BAUD_RATE(115200)
+    ) u_uart_rx (
+        .clk(CLOCK_50),
+        .rst(!sys_reset_n),
+        .rx_line(UART_RXD_IN),
+        .rx_data(uart_rx_byte),
+        .rx_valid(uart_rx_valid),
+        .rx_error()
+    );
+
+    // Convert 8-bit unsigned PCM from UART into 16-bit signed PCM
+    wire signed [15:0] uart_audio_sample = {~uart_rx_byte[7], uart_rx_byte[6:0], 8'h00};
+
+    // Audio Input Multiplexer:
+    // SW[13]=1: CP2101 UART Audio Streaming Mode (from PC)
+    // SW[13]=0, SW[17]=1: Internal DDS Sine Tone Generator (tones on SW[16:14])
+    // SW[13]=0, SW[17]=0: Physical 3.5mm Blue Line-In Jack (Wolfson WM8731 @ 48 kHz)
+    wire uart_audio_mode  = SW[13];
     wire synth_audio_mode = SW[17];
-    wire signed [15:0] eff_audio_sample = synth_audio_mode ? dds_sample : i2s_left_pcm;
-    wire               eff_sample_valid = synth_audio_mode ? dds_sample_tick : i2s_sample_valid;
+
+    wire signed [15:0] eff_audio_sample = uart_audio_mode  ? uart_audio_sample :
+                                          synth_audio_mode ? dds_sample : i2s_left_pcm;
+
+    wire eff_sample_valid = uart_audio_mode  ? uart_rx_valid :
+                            synth_audio_mode ? dds_sample_tick : i2s_sample_valid;
 
     // -------------------------------------------------------------------------
     // Dual-Bank Ping-Pong Sample Buffer
@@ -470,18 +500,21 @@ module audio_top #(
         .peak_bin_index({{(8-$clog2(FFT_POINTS/2)){1'b0}}, peak_bin_index}),
         .peak_magnitude(peak_magnitude),
         .total_energy(total_energy),
-        .tick_1sec(tick_1sec),
+        .tick_log(tick_100ms),
         .uart_txd(UART_TXD),
         .tx_active_led(uart_tx_active)
     );
+
+    // Drive CP2101 USB-to-UART Module Output (JP5 Pin 1) in parallel with DB9
+    assign UART_TXD_OUT = UART_TXD;
 
     // -------------------------------------------------------------------------
     // 8x 7-Segment Displays
     // -------------------------------------------------------------------------
     // HEX7: Classification Code (0..4)
     seven_seg_hex u_hex7 (.hex_digit({1'b0, class_code}), .blank(1'b0), .seg_out(HEX7));
-    // HEX6: Audio Mode (1: Synthetic DDS, 0: Physical I2S)
-    seven_seg_hex u_hex6 (.hex_digit({3'b000, synth_audio_mode}), .blank(1'b0), .seg_out(HEX6));
+    // HEX6: Audio Mode (2: UART Streaming, 1: Synthetic DDS, 0: Physical I2S Line-In)
+    seven_seg_hex u_hex6 (.hex_digit({2'b00, uart_audio_mode, synth_audio_mode}), .blank(1'b0), .seg_out(HEX6));
     // HEX5-4: Peak Frequency Bin (00 - 99)
     wire [3:0] dec_bin_tens      = (peak_bin_index / 10) % 10;
     wire [3:0] dec_bin_ones      = peak_bin_index % 10;

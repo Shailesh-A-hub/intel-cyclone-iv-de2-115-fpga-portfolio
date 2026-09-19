@@ -34,6 +34,7 @@ set_global_assignment -name VERILOG_FILE ../../common/rtl/lcd_hd44780_controller
 set_global_assignment -name VERILOG_FILE ../../common/rtl/seven_seg_hex.v
 set_global_assignment -name VERILOG_FILE ../../common/rtl/seven_seg_dec.v
 set_global_assignment -name VERILOG_FILE ../../common/rtl/uart_tx.v
+set_global_assignment -name VERILOG_FILE ../../common/rtl/uart_rx.v
 
 # Clock (50 MHz)
 set_location_assignment PIN_Y2 -to CLOCK_50
@@ -242,6 +243,12 @@ set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to VGA_*
 # RS-232 UART
 set_location_assignment PIN_G9 -to UART_TXD
 set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to UART_TXD
+
+# CP2101 USB-to-UART Module on JP5 Header
+set_location_assignment PIN_AB22 -to UART_TXD_OUT
+set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to UART_TXD_OUT
+set_location_assignment PIN_AC15 -to UART_RXD_IN
+set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to UART_RXD_IN
 
 set_global_assignment -name LAST_QUARTUS_VERSION "25.1std.0 Lite Edition"
 set_global_assignment -name PARTITION_NETLIST_TYPE SOURCE -section_id Top
