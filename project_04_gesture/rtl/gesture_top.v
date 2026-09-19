@@ -1,29 +1,26 @@
 //=============================================================================
 // Module: gesture_top
-// Project: Project 4 / Intermediate #9 — Gesture-Based Menu Navigation Interface
+// Project: Project 4 - FPGA Contactless Cross Gesture Recognition & Menu System
 // Target: Terasic DE2-115 (Cyclone IV EP4CE115F29C7)
-// Description: Top-level integration module for Intermediate #9 on DE2-115:
-//              - All 4 IR sensors (Left, Center, Right, Confirm) on JP5 GPIO[3:0]
-//              - 20ms debounce filtering x4
-//              - 2-step gesture recognition FSM (1.5s timeout):
-//                  * Left -> Center    = SELECT / Cursor Down
-//                  * Right -> Center   = BACK / Cursor Up
-//                  * Center -> Confirm = CONFIRM Selection
-//              - LEDG chase/progress driver:
-//                  * LEDG[0] = Step 1 detected
-//                  * LEDG[1] = Step 2 confirmed
-//                  * LEDG[2] = Submenu Active
-//                  * LEDG[3] = Manual Mode Active
-//              - Hierarchical 3-item menu engine on 16x2 Character LCD:
-//                  * Cursor '>' highlighting active row
-//                  * Submenus on confirm
-//                  * KEY[0] resets / returns home
-//              - CP2101 USB-to-UART telemetry logger at 9600 baud 8N1:
-//                  * Streams human-readable log lines to PC serial terminal
-//              - Mode Select Mux via SW[0]:
-//                  * SW[0]=0: Live IR gesture mode
-//                  * SW[0]=1: Manual pushbutton test mode (KEY[1..3])
-//              - 7-segment display of cursor position and submenu status
+// Description: Implements 4-direction optical IR gesture recognition:
+//              - 4 TCRT5000 IR sensors in Cross / Diamond arrangement on JP5:
+//                  * S1: Facing us (South / Near)      on JP5 Pin 3 (PIN_AB21)
+//                  * S2: Left      (West)              on JP5 Pin 4 (PIN_Y17)
+//                  * S3: Opposite  (North / Far)       on JP5 Pin 5 (PIN_AC21)
+//                  * S4: Right     (East)              on JP5 Pin 6 (PIN_Y16)
+//              - Direction Classification via ir_cross_gesture_decoder:
+//                  * Swipe Left  -> Right : "RIGHT" [->]
+//                  * Swipe Right -> Left  : "LEFT"  [<-]
+//                  * Swipe S1    -> S3    : "UP"    [^ ]
+//                  * Swipe S3    -> S1    : "DOWN"  [v ]
+//                  * Direct point / tap on any sensor triggers that direction
+//              - 16x2 Character LCD Display:
+//                  * SW[1]=0: Live Direction Visualizer ("DIR: LEFT", "DIR: RIGHT", etc.)
+//                             with 4-digit gesture count and live 4-sensor bitmask
+//                  * SW[1]=1: Interactive 3-item Menu Navigation
+//              - CP2101 USB-to-UART Bridge on JP5 Pin 1 (PIN_AB22) + DB9 (PIN_G9)
+//              - 7-Segment Display (HEX0: U/d/L/r, HEX3..1: gesture counter)
+//              - Status LEDs (LEDG[3:0] for direction, LEDR[3:0] for live sensors)
 // Standard: IEEE 1364-2001 Verilog
 //=============================================================================
 
@@ -31,14 +28,14 @@
 
 module gesture_top #(
     parameter integer CLK_FREQ_HZ   = 50_000_000,
-    parameter integer BAUD_RATE     = 9600,
+    parameter integer BAUD_RATE     = 115200,
     parameter integer ACTIVE_LOW_IR = 1,
     parameter integer SIMULATION    = 0
 )(
     // Clock & Asynchronous Reset
     input  wire        CLOCK_50,
-    input  wire [3:0]  KEY,               // KEY[0]: Reset/Home, KEY[1]: Down, KEY[2]: Up, KEY[3]: Confirm
-    input  wire [17:0] SW,                // SW[0]: 0=Gesture Mode, 1=Manual Mode
+    input  wire [3:0]  KEY,               // KEY[0]: Reset/Home, KEY[1]: Down/Left, KEY[2]: Up/Right, KEY[3]: Confirm
+    input  wire [17:0] SW,                // SW[0]: Manual Mode, SW[1]: Menu Mode, SW[3]: Invert Y-axis
 
     // 16x2 Character LCD Physical Interface
     output wire [7:0]  LCD_DATA,
@@ -71,7 +68,7 @@ module gesture_top #(
     output wire        UART_TXD_OUT,
 
     // External GPIO Header JP5
-    // GPIO[0]: Left, GPIO[1]: Center, GPIO[2]: Right, GPIO[3]: Confirm
+    // GPIO[0]: S1 (facing us), GPIO[1]: S2 (Left), GPIO[2]: S3 (opposite), GPIO[3]: S4 (Right)
     inout  wire [35:0] GPIO
 );
 
@@ -90,96 +87,118 @@ module gesture_top #(
     );
 
     // -------------------------------------------------------------------------
-    // 2. Debouncers for all 4 IR Sensors (GPIO[0..3])
+    // 2. Cross Sensor Mapping & Spatial Decoder (UP, DOWN, LEFT, RIGHT)
     // -------------------------------------------------------------------------
-    wire [3:0] debounced_ir;
+    // Physical arrangement on breadboard:
+    // S1: Facing us (South), S2: Left (West), S3: Opposite (North), S4: Right (East)
+    // SW[3] allows inverting Y-axis if desired
+    wire ir_raw_north = (SW[3]) ? GPIO[0] : GPIO[2]; // S3 by default
+    wire ir_raw_south = (SW[3]) ? GPIO[2] : GPIO[0]; // S1 by default
+    wire ir_raw_west  = GPIO[1];                      // S2 Left
+    wire ir_raw_east  = GPIO[3];                      // S4 Right
 
-    genvar i;
-    generate
-        for (i = 0; i < 4; i = i + 1) begin : gen_ir_debouncers
-            button_debounce #(
-                .CLK_FREQ_HZ(CLK_FREQ_HZ),
-                .DEBOUNCE_MS(SIMULATION ? 1 : 20),
-                .ACTIVE_LOW_IN(ACTIVE_LOW_IR)
-            ) u_db (
-                .clk(CLOCK_50),
-                .rst(rst),
-                .btn_in(GPIO[i]),
-                .debounced_state(debounced_ir[i]),
-                .pressed_pulse(),
-                .released_pulse()
-            );
-        end
-    endgenerate
+    wire        cross_gesture_valid;
+    wire [2:0]  cross_gesture_code;
+    wire [31:0] cross_gesture_ascii;
+    wire [15:0] cross_gesture_count;
+    wire [3:0]  cross_active_led; // [3]=East/S4, [2]=West/S2, [1]=South/S1, [0]=North/S3
 
-    // -------------------------------------------------------------------------
-    // 3. Debouncers for Manual Pushbuttons (KEY[1..3])
-    // -------------------------------------------------------------------------
-    wire btn_select_p, btn_back_p, btn_confirm_p;
-
-    button_debounce #(
+    ir_cross_gesture_decoder #(
         .CLK_FREQ_HZ(CLK_FREQ_HZ),
-        .DEBOUNCE_MS(SIMULATION ? 1 : 20),
-        .ACTIVE_LOW_IN(1)
-    ) u_db_btn1 (
-        .clk(CLOCK_50), .rst(rst), .btn_in(KEY[1]),
-        .debounced_state(), .pressed_pulse(btn_select_p), .released_pulse()
-    );
-
-    button_debounce #(
-        .CLK_FREQ_HZ(CLK_FREQ_HZ),
-        .DEBOUNCE_MS(SIMULATION ? 1 : 20),
-        .ACTIVE_LOW_IN(1)
-    ) u_db_btn2 (
-        .clk(CLOCK_50), .rst(rst), .btn_in(KEY[2]),
-        .debounced_state(), .pressed_pulse(btn_back_p), .released_pulse()
-    );
-
-    button_debounce #(
-        .CLK_FREQ_HZ(CLK_FREQ_HZ),
-        .DEBOUNCE_MS(SIMULATION ? 1 : 20),
-        .ACTIVE_LOW_IN(1)
-    ) u_db_btn3 (
-        .clk(CLOCK_50), .rst(rst), .btn_in(KEY[3]),
-        .debounced_state(), .pressed_pulse(btn_confirm_p), .released_pulse()
-    );
-
-    // -------------------------------------------------------------------------
-    // 4. Gesture Sequence FSM (2-Step Recognition with Timeout)
-    // -------------------------------------------------------------------------
-    wire gesture_select_pulse;
-    wire gesture_back_pulse;
-    wire gesture_confirm_pulse;
-    wire step1_active;
-    wire step2_confirmed;
-
-    ir_gesture_sequence_fsm #(
-        .CLK_FREQ_HZ(CLK_FREQ_HZ),
-        .TIMEOUT_MS(1500),
+        .DEBOUNCE_MS(SIMULATION ? 1 : 10),
+        .SWIPE_WINDOW_MS(SIMULATION ? 5 : 400),
+        .REFRACTORY_MS(SIMULATION ? 3 : 250),
+        .ACTIVE_LOW(ACTIVE_LOW_IR),
         .SIMULATION(SIMULATION)
-    ) u_gesture_fsm (
+    ) u_cross_decoder (
         .clk(CLOCK_50),
-        .rst(rst),
-        .ir_l(debounced_ir[0]),
-        .ir_c(debounced_ir[1]),
-        .ir_r(debounced_ir[2]),
-        .ir_k(debounced_ir[3]),
-        .sw_manual_mode(SW[0]),
-        .btn_select_pulse(btn_select_p),
-        .btn_back_pulse(btn_back_p),
-        .btn_confirm_pulse(btn_confirm_p),
-        .gesture_select_pulse(gesture_select_pulse),
-        .gesture_back_pulse(gesture_back_pulse),
-        .gesture_confirm_pulse(gesture_confirm_pulse),
-        .step1_active(step1_active),
-        .step2_confirmed(step2_confirmed)
+        .reset_n(!rst),
+        .ir_raw_u(ir_raw_north),
+        .ir_raw_d(ir_raw_south),
+        .ir_raw_l(ir_raw_west),
+        .ir_raw_r(ir_raw_east),
+        .gesture_valid(cross_gesture_valid),
+        .gesture_code(cross_gesture_code),
+        .gesture_ascii(cross_gesture_ascii),
+        .gesture_count(cross_gesture_count),
+        .sensor_active_led(cross_active_led)
     );
 
     // -------------------------------------------------------------------------
-    // 5. LCD Menu Renderer (Hierarchical 3-item Navigable Menu)
+    // 3. Manual Pushbutton Debouncers (KEY[1..3])
     // -------------------------------------------------------------------------
-    wire [127:0] lcd_line1;
-    wire [127:0] lcd_line2;
+    wire btn1_pulse, btn2_pulse, btn3_pulse;
+
+    button_debounce #(.CLK_FREQ_HZ(CLK_FREQ_HZ), .DEBOUNCE_MS(SIMULATION ? 1 : 20), .ACTIVE_LOW_IN(1))
+    u_db_btn1 (.clk(CLOCK_50), .rst(rst), .btn_in(KEY[1]), .debounced_state(), .pressed_pulse(btn1_pulse), .released_pulse());
+
+    button_debounce #(.CLK_FREQ_HZ(CLK_FREQ_HZ), .DEBOUNCE_MS(SIMULATION ? 1 : 20), .ACTIVE_LOW_IN(1))
+    u_db_btn2 (.clk(CLOCK_50), .rst(rst), .btn_in(KEY[2]), .debounced_state(), .pressed_pulse(btn2_pulse), .released_pulse());
+
+    button_debounce #(.CLK_FREQ_HZ(CLK_FREQ_HZ), .DEBOUNCE_MS(SIMULATION ? 1 : 20), .ACTIVE_LOW_IN(1))
+    u_db_btn3 (.clk(CLOCK_50), .rst(rst), .btn_in(KEY[3]), .debounced_state(), .pressed_pulse(btn3_pulse), .released_pulse());
+
+    // Unified Gesture Event Multiplexer (Live IR vs Manual Test Mode SW[0])
+    wire       active_gesture_valid = (SW[0]) ? (btn1_pulse || btn2_pulse || btn3_pulse) : cross_gesture_valid;
+    wire [2:0] active_gesture_code  = (SW[0]) ? (btn1_pulse ? 3'd2 : (btn2_pulse ? 3'd1 : 3'd4)) : cross_gesture_code;
+
+    // -------------------------------------------------------------------------
+    // 4. Direction Memory & LCD Display Generator
+    // -------------------------------------------------------------------------
+    reg [2:0]  last_gesture_code;
+    reg [15:0] total_gesture_counter;
+
+    always @(posedge CLOCK_50) begin
+        if (rst) begin
+            last_gesture_code     <= 3'd0; // None / Ready
+            total_gesture_counter <= 16'd0;
+        end else if (active_gesture_valid) begin
+            last_gesture_code     <= active_gesture_code;
+            total_gesture_counter <= total_gesture_counter + 1'b1;
+        end
+    end
+
+    // Line 1: Clear Direction Display with visual ASCII arrow
+    reg [127:0] dir_line1;
+    always @(*) begin
+        case (last_gesture_code)
+            3'd1: dir_line1 = "DIR: UP     [^ ]"; // UP
+            3'd2: dir_line1 = "DIR: DOWN   [v ]"; // DOWN
+            3'd3: dir_line1 = "DIR: LEFT   [<-]"; // LEFT
+            3'd4: dir_line1 = "DIR: RIGHT  [->]"; // RIGHT
+            default: dir_line1 = "GESTURE: READY  ";
+        endcase
+    end
+
+    // Line 2: Decimal Counter & Live 4-Sensor Trigger Monitor
+    wire [3:0] cnt_thousands = (total_gesture_counter / 1000) % 10;
+    wire [3:0] cnt_hundreds  = (total_gesture_counter / 100) % 10;
+    wire [3:0] cnt_tens      = (total_gesture_counter / 10) % 10;
+    wire [3:0] cnt_units     = total_gesture_counter % 10;
+
+    wire [7:0] char_c3 = "0" + cnt_thousands;
+    wire [7:0] char_c2 = "0" + cnt_hundreds;
+    wire [7:0] char_c1 = "0" + cnt_tens;
+    wire [7:0] char_c0 = "0" + cnt_units;
+
+    // Live debounced indicators: S4(Right), S3(opposite), S2(Left), S1(facing us)
+    wire [7:0] char_s1 = cross_active_led[1] ? "1" : "0"; // S1 (South)
+    wire [7:0] char_s2 = cross_active_led[2] ? "1" : "0"; // S2 (West)
+    wire [7:0] char_s3 = cross_active_led[0] ? "1" : "0"; // S3 (North)
+    wire [7:0] char_s4 = cross_active_led[3] ? "1" : "0"; // S4 (East)
+
+    wire [127:0] dir_line2 = {"CNT:", char_c3, char_c2, char_c1, char_c0, " S:", char_s4, char_s3, char_s2, char_s1, " "};
+
+    // -------------------------------------------------------------------------
+    // 5. Interactive Menu Mode (Active when SW[1]=1)
+    // -------------------------------------------------------------------------
+    wire nav_up      = (active_gesture_valid && active_gesture_code == 3'd1);
+    wire nav_down    = (active_gesture_valid && active_gesture_code == 3'd2);
+    wire nav_confirm = (active_gesture_valid && active_gesture_code == 3'd4);
+    wire nav_back    = (active_gesture_valid && active_gesture_code == 3'd3);
+
+    wire [127:0] menu_line1;
+    wire [127:0] menu_line2;
     wire [1:0]   cursor_pos;
     wire         in_submenu;
     wire         menu_event_pulse;
@@ -188,19 +207,23 @@ module gesture_top #(
     lcd_menu_renderer u_menu_renderer (
         .clk(CLOCK_50),
         .rst(rst),
-        .select_pulse(gesture_select_pulse),
-        .back_pulse(gesture_back_pulse),
-        .confirm_pulse(gesture_confirm_pulse),
-        .reset_home_pulse(rst),
-        .raw_ir_sensors(debounced_ir),
+        .select_pulse(nav_down),
+        .back_pulse(nav_up),
+        .confirm_pulse(nav_confirm),
+        .reset_home_pulse(nav_back || rst),
+        .raw_ir_sensors({cross_active_led[3], cross_active_led[0], cross_active_led[2], cross_active_led[1]}),
         .sw_manual_mode(SW[0]),
         .cursor_pos(cursor_pos),
         .in_submenu(in_submenu),
-        .line1_text(lcd_line1),
-        .line2_text(lcd_line2),
+        .line1_text(menu_line1),
+        .line2_text(menu_line2),
         .event_pulse(menu_event_pulse),
         .event_type(menu_event_type)
     );
+
+    // Mux LCD output lines between Direction Visualizer (SW[1]=0) and Menu (SW[1]=1)
+    wire [127:0] final_lcd_line1 = (SW[1]) ? menu_line1 : dir_line1;
+    wire [127:0] final_lcd_line2 = (SW[1]) ? menu_line2 : dir_line2;
 
     // -------------------------------------------------------------------------
     // 6. HD44780 16x2 Character LCD Driver
@@ -210,8 +233,8 @@ module gesture_top #(
     ) u_lcd (
         .clk(CLOCK_50),
         .rst(rst),
-        .line1_text(lcd_line1),
-        .line2_text(lcd_line2),
+        .line1_text(final_lcd_line1),
+        .line2_text(final_lcd_line2),
         .refresh_strobe(1'b0),
         .busy(),
         .lcd_data(LCD_DATA),
@@ -223,67 +246,105 @@ module gesture_top #(
     );
 
     // -------------------------------------------------------------------------
-    // 7. CP2101 UART Telemetry Logger (9600 Baud 8N1)
+    // 7. CP2101 USB-to-UART Telemetry Logger
     // -------------------------------------------------------------------------
-    inter9_uart_logger #(
+    wire tick_1sec;
+    periodic_timer #(
+        .PERIOD(SIMULATION ? 10_000 : CLK_FREQ_HZ),
+        .WIDTH(32)
+    ) u_tick_1s (
+        .clk(CLOCK_50),
+        .rst(rst),
+        .enable(1'b1),
+        .tick_in(1'b1),
+        .tick_out(tick_1sec),
+        .count_val()
+    );
+
+    gesture_uart_logger #(
         .CLK_FREQ_HZ(CLK_FREQ_HZ),
         .BAUD_RATE(BAUD_RATE)
     ) u_uart_log (
         .clk(CLOCK_50),
-        .rst(rst),
-        .gesture_select_pulse(gesture_select_pulse),
-        .gesture_back_pulse(gesture_back_pulse),
-        .gesture_confirm_pulse(gesture_confirm_pulse),
-        .menu_event_pulse(menu_event_pulse),
-        .menu_event_type(menu_event_type),
-        .cursor_pos(cursor_pos),
-        .uart_txd(UART_TXD)
+        .reset_n(!rst),
+        .gesture_valid(active_gesture_valid),
+        .gesture_code(active_gesture_code),
+        .gesture_ascii(cross_gesture_ascii),
+        .gesture_counter(total_gesture_counter),
+        .current_menu(cursor_pos),
+        .in_submenu(in_submenu),
+        .submenu_page(2'd0),
+        .device_ready(1'b1),
+        .i2c_error(1'b0),
+        .tick_1sec(tick_1sec),
+        .uart_txd(UART_TXD),
+        .tx_active_led()
     );
 
+    // Parallel broadcast to CP2101 USB module on JP5 Pin 1
     assign UART_TXD_OUT = UART_TXD;
 
     // -------------------------------------------------------------------------
-    // 8. Visual LED Feedback & Chase Effect
+    // 8. Visual Status LEDs
     // -------------------------------------------------------------------------
-    assign LEDG[0]   = step1_active;
-    assign LEDG[1]   = step2_confirmed;
-    assign LEDG[2]   = in_submenu;
-    assign LEDG[3]   = SW[0];           // Manual mode indicator
-    assign LEDG[8:4] = 5'b0;
+    // Green LEDs indicate active recognized direction
+    assign LEDG[0]   = (last_gesture_code == 3'd1); // UP
+    assign LEDG[1]   = (last_gesture_code == 3'd2); // DOWN
+    assign LEDG[2]   = (last_gesture_code == 3'd3); // LEFT
+    assign LEDG[3]   = (last_gesture_code == 3'd4); // RIGHT
+    assign LEDG[4]   = in_submenu;
+    assign LEDG[5]   = SW[1];                       // Menu Mode
+    assign LEDG[6]   = SW[0];                       // Manual Mode
+    assign LEDG[7]   = SW[3];                       // Y-Invert Flag
+    assign LEDG[8]   = active_gesture_valid;        // Trigger strobe
 
-    assign LEDR[3:0]   = debounced_ir;  // Show live debounced IR triggers
-    assign LEDR[16:4]  = 13'b0;
-    assign LEDR[17]    = SW[0];
+    // Red LEDs show live raw debounced sensors [S4, S3, S2, S1]
+    assign LEDR[0]   = cross_active_led[1]; // S1 (facing us)
+    assign LEDR[1]   = cross_active_led[2]; // S2 (Left)
+    assign LEDR[2]   = cross_active_led[0]; // S3 (opposite)
+    assign LEDR[3]   = cross_active_led[3]; // S4 (Right)
+    assign LEDR[15:4]= 12'b0;
+    assign LEDR[16]  = SW[1];
+    assign LEDR[17]  = SW[0];
 
     // -------------------------------------------------------------------------
     // 9. Seven-Segment Displays (HEX0..7)
     // -------------------------------------------------------------------------
-    // HEX0: Current Menu Cursor (0, 1, 2)
-    seven_seg_dec u_hex0 (
-        .dec_digit({2'b00, cursor_pos}),
-        .blank(1'b0),
-        .show_dash(1'b0),
-        .seg_out(HEX0)
-    );
+    // HEX0: Direction Letter: U (UP), d (DOWN), L (LEFT), r (RIGHT), - (IDLE)
+    reg [6:0] hex0_dir;
+    always @(*) begin
+        if (SW[1]) begin
+            // Menu mode cursor
+            case (cursor_pos)
+                2'd0: hex0_dir = 7'b100_0000; // '0'
+                2'd1: hex0_dir = 7'b111_1001; // '1'
+                2'd2: hex0_dir = 7'b010_0100; // '2'
+                default: hex0_dir = 7'b111_1111;
+            endcase
+        end else begin
+            case (last_gesture_code)
+                3'd1: hex0_dir = 7'b100_0001; // 'U'
+                3'd2: hex0_dir = 7'b010_0001; // 'd'
+                3'd3: hex0_dir = 7'b100_0111; // 'L'
+                3'd4: hex0_dir = 7'b010_1111; // 'r'
+                default: hex0_dir = 7'b011_1111; // '-'
+            endcase
+        end
+    end
+    assign HEX0 = hex0_dir;
 
-    // HEX1: Submenu Flag (1 if inside submenu, 0 if root menu)
-    seven_seg_dec u_hex1 (
-        .dec_digit({3'b000, in_submenu}),
-        .blank(1'b0),
-        .show_dash(1'b0),
-        .seg_out(HEX1)
-    );
+    // HEX1..3: Gesture Counter (Units, Tens, Hundreds)
+    seven_seg_dec u_hex1 (.dec_digit(cnt_units),    .blank(1'b0),                         .show_dash(1'b0), .seg_out(HEX1));
+    seven_seg_dec u_hex2 (.dec_digit(cnt_tens),     .blank(total_gesture_counter < 10),   .show_dash(1'b0), .seg_out(HEX2));
+    seven_seg_dec u_hex3 (.dec_digit(cnt_hundreds), .blank(total_gesture_counter < 100),  .show_dash(1'b0), .seg_out(HEX3));
 
-    // HEX2..HEX7: Blank
-    assign HEX2 = 7'b111_1111;
-    assign HEX3 = 7'b111_1111;
     assign HEX4 = 7'b111_1111;
     assign HEX5 = 7'b111_1111;
     assign HEX6 = 7'b111_1111;
     assign HEX7 = 7'b111_1111;
 
     // -------------------------------------------------------------------------
-    // 10. VGA Interface Safe Tie-Off
+    // 10. VGA Safe Tie-Off
     // -------------------------------------------------------------------------
     assign VGA_CLK     = 1'b0;
     assign VGA_HS      = 1'b1;
