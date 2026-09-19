@@ -137,7 +137,11 @@ module ir_gesture_sequence_fsm #(
             S_IDLE: begin
                 timer_rst = 1'b1;
                 next_detected_gesture = 2'd0;
-                if (ir_l_edge) begin
+                if (ir_k_edge) begin
+                    // Direct tap/hover on Confirm sensor (Sensor 4 on Linear Breadboard)
+                    next_detected_gesture = 2'd3; // CONFIRM
+                    next_state            = S_CONFIRMED;
+                end else if (ir_l_edge) begin
                     next_state = S_LEFT_FIRST;
                 end else if (ir_r_edge) begin
                     next_state = S_RIGHT_FIRST;
@@ -148,8 +152,9 @@ module ir_gesture_sequence_fsm #(
 
             S_LEFT_FIRST: begin
                 timer_en = 1'b1;
-                if (ir_c_edge) begin
-                    next_detected_gesture = 2'd1; // SELECT
+                // Left-to-Right swipe: Center or Right triggered
+                if (ir_c_edge || ir_r_edge) begin
+                    next_detected_gesture = 2'd1; // SELECT (Cursor Down)
                     next_state            = S_CONFIRMED;
                 end else if (timeout) begin
                     next_state = S_IDLE; // False trigger abort
@@ -158,8 +163,9 @@ module ir_gesture_sequence_fsm #(
 
             S_RIGHT_FIRST: begin
                 timer_en = 1'b1;
-                if (ir_c_edge) begin
-                    next_detected_gesture = 2'd2; // BACK
+                // Right-to-Left swipe: Center or Left triggered
+                if (ir_c_edge || ir_l_edge) begin
+                    next_detected_gesture = 2'd2; // BACK (Cursor Up)
                     next_state            = S_CONFIRMED;
                 end else if (timeout) begin
                     next_state = S_IDLE; // False trigger abort
@@ -169,7 +175,7 @@ module ir_gesture_sequence_fsm #(
             S_CENTER_FIRST: begin
                 timer_en = 1'b1;
                 if (ir_k_edge) begin
-                    next_detected_gesture = 2'd3; // CONFIRM
+                    next_detected_gesture = 2'd3; // CONFIRM (T-shape Center->Down)
                     next_state            = S_CONFIRMED;
                 end else if (timeout) begin
                     next_state = S_IDLE; // False trigger abort

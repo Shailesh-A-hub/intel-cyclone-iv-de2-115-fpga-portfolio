@@ -68,6 +68,7 @@ module gesture_top #(
 
     // Serial RS-232 / CP2101 UART
     output wire        UART_TXD,
+    output wire        UART_TXD_OUT,
 
     // External GPIO Header JP5
     // GPIO[0]: Left, GPIO[1]: Center, GPIO[2]: Right, GPIO[3]: Confirm
@@ -238,6 +239,8 @@ module gesture_top #(
         .cursor_pos(cursor_pos),
         .uart_txd(UART_TXD)
     );
+
+    assign UART_TXD_OUT = UART_TXD;
 
     // -------------------------------------------------------------------------
     // 8. Visual LED Feedback & Chase Effect

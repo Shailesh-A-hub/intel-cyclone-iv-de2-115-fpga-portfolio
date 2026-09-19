@@ -175,6 +175,28 @@ module tb_intermediate9_gesture;
             fail_count = fail_count + 1;
         end
 
+        // 4b. Test Direct Tap on Confirm (Linear Breadboard Sensor 4 Tap)
+        $display("[SIM] Testing Linear Breadboard direct tap on Sensor 4 (CONFIRM)...");
+        gpio_0[3] = 1'b0; // Tap sensor 4 directly
+        repeat(100) @(posedge clk);
+        gpio_0[3] = 1'b1; // Release
+        repeat(150) @(posedge clk);
+
+        if (dut.in_submenu == 1'b1) begin
+            $display("[PASS] Linear Breadboard direct tap on Sensor 4 entered submenu directly!");
+            pass_count = pass_count + 1;
+        end else begin
+            $display("[FAIL] Direct tap failed to enter submenu!");
+            fail_count = fail_count + 1;
+        end
+
+        // Return to root menu
+        repeat(50) @(posedge clk);
+        gpio_0[3] = 1'b0;
+        repeat(100) @(posedge clk);
+        gpio_0[3] = 1'b1;
+        repeat(150) @(posedge clk);
+
         // 5. Test Incomplete Gesture Timeout
         $display("[SIM] Testing incomplete gesture: Left triggered, no second sensor...");
         gpio_0[0] = 1'b0; // Left broken
