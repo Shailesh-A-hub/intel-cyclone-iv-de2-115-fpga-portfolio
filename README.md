@@ -1,3 +1,13 @@
+# Team Details
+**Team Name:** ControlAltDelete
+**Members & Registration Numbers:**
+1. Shailesh - 24BEC0655
+2. Pradeep P - 24BVD0206
+
+**FPGA Board:** Terasic DE2-115 (Intel Cyclone IV EP4CE115F29C7)
+
+---
+
 # Intel Cyclone IV (DE2-115) 5-Project FPGA Engineering Portfolio
 
 [![Verification Status](https://img.shields.io/badge/Regression%20Suite-17%2F17%20PASS%20(100%25)-brightgreen.svg)](tools/simulation/run_all_tests.py)

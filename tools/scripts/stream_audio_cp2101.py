@@ -15,6 +15,8 @@ import sys
 import time
 import math
 import argparse
+import wave
+import struct
 
 try:
     import serial
@@ -41,6 +43,54 @@ def generate_tone_bytes(freq_hz, duration_sec, sample_rate=8000):
         samples[i] = max(0, min(255, val))
     return samples
 
+def stream_wav_file(filename, ser):
+    try:
+        wf = wave.open(filename, 'rb')
+    except Exception as e:
+        print(f"[ERROR] Could not open WAV file {filename}: {e}")
+        return
+
+    nchannels = wf.getnchannels()
+    sampwidth = wf.getsampwidth()
+    framerate = wf.getframerate()
+    
+    print(f"[INFO] Streaming WAV: {framerate}Hz, {nchannels} ch, {sampwidth*8}-bit")
+    print("[INFO] Converting to 8-bit Mono stream for FPGA on the fly...")
+    
+    chunk_size = 128
+    dt = float(chunk_size) / framerate
+    
+    try:
+        while True:
+            frames = wf.readframes(chunk_size)
+            if not frames:
+                break
+                
+            out_chunk = bytearray()
+            
+            # Convert format to 8-bit mono for UART
+            if sampwidth == 1:
+                for i in range(0, len(frames), nchannels):
+                    out_chunk.append(frames[i])
+            elif sampwidth == 2:
+                for i in range(0, len(frames), 2 * nchannels):
+                    val = struct.unpack('<h', frames[i:i+2])[0]
+                    # Map signed 16-bit to unsigned 8-bit
+                    val8 = int(((val + 32768) / 65535.0) * 255)
+                    out_chunk.append(max(0, min(255, val8)))
+            else:
+                print(f"[ERROR] Unsupported sample width: {sampwidth*8} bits. Use 8 or 16-bit WAV.")
+                return
+                
+            if len(out_chunk) > 0:
+                ser.write(out_chunk)
+                
+            # Sleep to maintain realtime acoustic speed
+            time.sleep(dt)
+            
+    except KeyboardInterrupt:
+        print("\\n[INFO] Stopped WAV playback.")
+
 def main():
     parser = argparse.ArgumentParser(description="Stream audio samples over CP2101 to DE2-115")
     parser.add_argument("--port", type=str, default=None, help="Serial COM port (e.g. COM4)")
@@ -48,6 +98,7 @@ def main():
     parser.add_argument("--tone", type=float, default=440.0, help="Sine frequency in Hz (default 440)")
     parser.add_argument("--duration", type=float, default=10.0, help="Duration in seconds (default 10)")
     parser.add_argument("--sweep", action="store_true", help="Perform a frequency sweep")
+    parser.add_argument("--file", type=str, default=None, help="Path to a .wav audio file to play")
     args = parser.parse_args()
 
     port = args.port or find_cp210x_port()
@@ -72,7 +123,9 @@ def main():
     dt = float(chunk_size) / sample_rate
 
     try:
-        if args.sweep:
+        if args.file:
+            stream_wav_file(args.file, ser)
+        elif args.sweep:
             print("[INFO] Streaming frequency sweep: 200 Hz -> 3000 Hz...")
             freq = 200.0
             phase = 0.0

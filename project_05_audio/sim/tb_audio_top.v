@@ -150,6 +150,10 @@ module tb_audio_top;
         $display("   PROJECT 5: AUDIO SPECTRUM & NOISE CLASSIFICATION TB");
         $display("============================================================");
 
+        // Generate Waveform VCD file for GTKWave
+        $dumpfile("project_05_audio.vcd");
+        $dumpvars(0, tb_audio_top);
+
         // ---------------------------------------------------------------------
         // TEST 1: Reset & Initial State
         // ---------------------------------------------------------------------
