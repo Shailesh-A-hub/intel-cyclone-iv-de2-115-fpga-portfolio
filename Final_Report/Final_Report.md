@@ -75,7 +75,6 @@ The FPGA reads a physical Soil Moisture sensor via an ADC, and communicates with
 ### Hardware Implementation & Results
 The system reads real soil moisture variations. When dry soil is detected, the pump relay engages. The FPGA handles 1-Wire timing constraints perfectly in pure hardware.
 
-*(No photographs requested for this experiment).*
 
 ### Conclusion
 The precision timing required for the DHT11 and the analog-to-digital conversion were executed flawlessly in hardware, proving the viability of FPGA-based precision agriculture.
