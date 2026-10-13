@@ -18,24 +18,34 @@ The DE2-115 provides two 40-pin expansion headers (`JP5` = GPIO, `JP1` = GPIO). 
 
 | Peripheral Device | Signal Name | DE2-115 JP5 Pin | FPGA Pin | Signal Type | Notes |
 |---|---|---|---|---|---|
-| **MCP3008 ADC** | `ADC_CS_N` | Pin 1 | `PIN_AB22` | Output (3.3V) | Active-low chip select |
-| **MCP3008 ADC** | `ADC_SCLK` | Pin 2 | `PIN_AC15` | Output (3.3V) | SPI Clock ($50\text{ kHz}$) |
-| **MCP3008 ADC** | `ADC_MOSI` | Pin 3 | `PIN_AB21` | Output (3.3V) | Master Out Slave In |
-| **MCP3008 ADC** | `ADC_MISO` | Pin 4 | `PIN_Y17` | Input (3.3V) | Master In Slave Out |
-| **DHT11 Sensor** | `DHT_DATA` | Pin 5 | `PIN_AC21` | Inout (3.3V) | Bidirectional with $4.7\text{ k}\Omega$ pull-up to $3.3\text{ V}$ |
-| **Rain Sensor** | `RAIN_PIN` | Pin 6 | `PIN_Y16` | Input (3.3V) | Digital active-high (rain detected) |
-| **Relay Driver** | `RELAY_CTRL`| Pin 7 | `PIN_AD21` | Output (3.3V) | Optocoupler input anode via $220\Omega$ resistor |
-| **Power Supply** | `+3.3V` | Pin 29 | N/A | Power | 3.3V sensor supply |
-| **Ground** | `GND` | Pin 12 / 30 | N/A | Ground | Common system ground |
+| **Relay Driver** | `GPIO_0` | Pin 1 | `PIN_AB22` | Output (3.3V) | Active-high pump relay driver |
+| **MCP3008 ADC** | `GPIO_1` | Pin 2 | `PIN_AC15` | Output (3.3V) | SPI Chip Select (Active-low) |
+| **MCP3008 ADC** | `GPIO_3` | Pin 4 | `PIN_Y17`  | Output (3.3V) | SPI Clock ($1\text{ MHz}$) |
+| **MCP3008 ADC** | `GPIO_5` | Pin 6 | `PIN_Y16`  | Output (3.3V) | SPI MOSI (Data In) |
+| **Soil Sensor (LM393)**| `GPIO_7` | Pin 8 | `PIN_AE16` | Input (3.3V) | **LM393 DO pin** (or MCP3008 MISO) |
+| **DHT11 Sensor** | `GPIO_9` | Pin 10 | `PIN_AF16` | Inout (3.3V) | 1-Wire Data with $4.7\text{ k}\Omega$ pull-up to $3.3\text{ V}$ |
+| **Rain Sensor** | `GPIO_11` | Pin 13 | `PIN_AE15` | Input (3.3V) | Digital active-high (rain detected) |
+| **Power Supply** | `+3.3V` | Pin 29 | N/A | Power | 3.3V DC Sensor Supply |
+| **Ground** | `GND` | Pin 12 / 30 | N/A | Ground | Common System Ground |
 
 ---
 
 ## 3. Sensor Wiring Details
 
-### 3.1 Soil Moisture Probe & MCP3008
-- Connect moisture probe analog output to MCP3008 `CH0` (Pin 1 of IC).
-- Connect MCP3008 `VDD` and `VREF` to $3.3\text{ V}$ (Pin 29 of `JP5`).
-- Connect MCP3008 `AGND` and `DGND` to Ground (Pin 12 of `JP5`).
+### 3.1 Soil Moisture Probe & LM393 Module (Direct 3-Wire Connection — No ADC IC Required)
+This project directly supports the standard **YL-69 probe + LM393 comparator breakout module**:
+1. Connect the 2 pins of the fork probe to the 2-pin header on the blue LM393 module using the 2-pin jumper cable.
+2. Wire the 4-pin interface of the blue module directly to DE2-115 Header `JP5`:
+   - **`VCC`** $\rightarrow$ **JP5 Pin 29** (+3.3V Power)
+   - **`GND`** $\rightarrow$ **JP5 Pin 12 or 30** (System Ground)
+   - **`DO`**  $\rightarrow$ **JP5 Pin 8 (`PIN_AE16`, GPIO_7)** (Direct digital moisture threshold signal)
+   - **`AO`**  $\rightarrow$ *Leave unconnected* (or connect to MCP3008 Pin 1 CH0 if using external ADC mode)
+
+#### Calibration & Operation:
+- **Default State (Dry Soil / Air):** The onboard green indicator LED on the sensor module turns OFF, the `DO` line is driven HIGH (1), the FPGA reads $20\%$ moisture, and the pump relay activates (`LEDG[0]` turns ON).
+- **Watered State (Moist Soil / Water):** The green indicator LED on the sensor module turns ON, the `DO` line drops LOW (0), the FPGA reads $85\%$ moisture, and the pump turns OFF.
+- **Potentiometer Adjustment:** Use a small flat-head screwdriver on the blue trimmer potentiometer to calibrate the exact sensitivity between moist and dry soil.
+- **Mode Toggle:** `LEDR[12]` is illuminated when Direct LM393 DO mode is active. (Optional toggle via `SW[12]`).
 
 ### 3.2 DHT11 Sensor
 - Pin 1 (VCC) $\rightarrow 3.3\text{ V}$

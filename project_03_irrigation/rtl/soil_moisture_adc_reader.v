@@ -13,17 +13,21 @@
 module soil_moisture_adc_reader #(
     parameter CLK_FREQ_HZ    = 50_000_000,
     parameter SPI_CLK_HZ     = 1_000_000,
-    parameter SAMPLE_RATE_HZ = 10
+    parameter SAMPLE_RATE_HZ = 10,
+    parameter SIM_SPEEDUP    = 0
 )(
     input  wire        clk,
     input  wire        rst_n,
+
+    // Sensor Operating Mode: 1 = Direct Digital LM393 DO mode, 0 = MCP3008 SPI ADC mode
+    input  wire        direct_do_mode_en,
 
     // Synthetic Test Mode
     input  wire        synth_mode_en,
     input  wire [9:0]  synth_soil_adc,
     input  wire        synth_fault_inject,
 
-    // Physical SPI Interface to MCP3008 ADC (Channel 0)
+    // Physical Interface (spi_miso doubles as direct DO input in Direct Mode)
     output wire        spi_cs_n,
     output wire        spi_sclk,
     output wire        spi_mosi,
@@ -104,6 +108,18 @@ module soil_moisture_adc_reader #(
     reg [9:0]  captured_raw;
     reg        conv_done_strobe;
 
+    // 2-stage synchronizer for Direct Digital DO input from LM393 module
+    reg do_sync_0, do_sync_1;
+    always @(posedge clk or negedge rst_n) begin
+        if (!rst_n) begin
+            do_sync_0 <= 1'b0;
+            do_sync_1 <= 1'b0;
+        end else begin
+            do_sync_0 <= spi_miso;
+            do_sync_1 <= do_sync_0;
+        end
+    end
+
     always @(posedge clk or negedge rst_n) begin
         if (!rst_n) begin
             state            <= ST_IDLE;
@@ -121,6 +137,12 @@ module soil_moisture_adc_reader #(
             if (synth_mode_en) begin
                 cs_n_reg     <= 1'b1;
                 captured_raw <= synth_soil_adc;
+                if (start_sample) conv_done_strobe <= 1'b1;
+                state        <= ST_IDLE;
+            end else if (direct_do_mode_en) begin
+                cs_n_reg     <= 1'b1;
+                // Direct digital input from physical LM393 comparator (Active-Low DO on wet detection)
+                captured_raw <= (!do_sync_1) ? 10'd513 : 10'd850;
                 if (start_sample) conv_done_strobe <= 1'b1;
                 state        <= ST_IDLE;
             end else begin
@@ -186,7 +208,7 @@ module soil_moisture_adc_reader #(
 
     // ------------------------------------------------------------------------
     // Moisture Percentage Conversion & Fault Check
-    // Capacitive moisture sensor:
+    // Capacitive/Resistive moisture sensor:
     // Raw >= 1000: bone dry (0%)
     // Raw <= 250:  water immersed (100%)
     // Linear scaling: (1000 - raw) * 100 / 750
@@ -206,8 +228,10 @@ module soil_moisture_adc_reader #(
             if (conv_done_strobe) begin
                 raw_adc_out <= captured_raw;
 
-                // Fault: Open/short circuit or synthetic fault
-                if (synth_fault_inject || captured_raw < 10'd10 || captured_raw >= 10'd1020) begin
+                // Fault: Synthetic fault or (in SPI mode) open/short circuit
+                if (synth_fault_inject) begin
+                    sensor_fault <= 1'b1;
+                end else if (!direct_do_mode_en && (captured_raw < 10'd10 || captured_raw >= 10'd1020)) begin
                     sensor_fault <= 1'b1;
                 end else begin
                     sensor_fault <= 1'b0;

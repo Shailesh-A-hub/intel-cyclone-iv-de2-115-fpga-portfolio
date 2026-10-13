@@ -61,7 +61,8 @@ module tb_irrigation_top;
         .BAUD_RATE      (BAUD_RATE),
         .MIN_ON_SECONDS (MIN_ON_SECONDS),
         .MIN_OFF_SECONDS(MIN_OFF_SECONDS),
-        .SIM_SPEEDUP    (1)
+        .SIM_SPEEDUP    (1),
+        .DEFAULT_DIRECT_DO_MODE (0)
     ) dut (
         .CLOCK_50       (clk),
         .KEY            (key),
@@ -491,6 +492,37 @@ module tb_irrigation_top;
             pass_count = pass_count + 1;
         end else begin
             $display("    [FAIL] Pump restarted before Min OFF period elapsed.");
+            fail_count = fail_count + 1;
+        end
+
+        // --------------------------------------------------------------------
+        // TEST 13: Direct Digital LM393 DO Sensor Mode Verification
+        // --------------------------------------------------------------------
+        $display("[*] TEST 13: Direct Digital LM393 DO Sensor Mode Verification");
+        // Enable Direct LM393 DO mode via sw[12]
+        sw[12] = 1'b1;
+        // Case A: DO = 1 (Dry soil -> 20% moisture)
+        gpio_7 = 1'b1;
+        wait_cycles(15000); // Allow sample interval (10,000 cycles) to update
+        $display("    Direct DO=1 (Dry): Moisture = %d%%, LEDR[12] = %b",
+                 dut.soil_moisture_pct, dut.LEDR[12]);
+        if (dut.soil_moisture_pct == 7'd20 && dut.LEDR[12] == 1'b1) begin
+            $display("    [PASS] Direct LM393 DO dry state correctly latched 20%% moisture.");
+            pass_count = pass_count + 1;
+        end else begin
+            $display("    [FAIL] Direct LM393 DO dry state failed.");
+            fail_count = fail_count + 1;
+        end
+
+        // Case B: DO = 0 (Wet soil -> 65% moisture)
+        gpio_7 = 1'b0;
+        wait_cycles(15000); // Allow sample interval to update
+        $display("    Direct DO=0 (Wet): Moisture = %d%%", dut.soil_moisture_pct);
+        if (dut.soil_moisture_pct >= 7'd60) begin
+            $display("    [PASS] Direct LM393 DO wet state correctly latched moist level.");
+            pass_count = pass_count + 1;
+        end else begin
+            $display("    [FAIL] Direct LM393 DO wet state failed.");
             fail_count = fail_count + 1;
         end
 

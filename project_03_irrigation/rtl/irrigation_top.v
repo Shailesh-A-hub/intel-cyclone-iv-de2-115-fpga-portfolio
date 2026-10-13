@@ -25,7 +25,8 @@ module irrigation_top #(
     parameter BAUD_RATE       = 115_200,
     parameter MIN_ON_SECONDS  = 5,
     parameter MIN_OFF_SECONDS = 10,
-    parameter SIM_SPEEDUP     = 0
+    parameter SIM_SPEEDUP     = 0,
+    parameter DEFAULT_DIRECT_DO_MODE = 1 // 1: Direct LM393 DO mode, 0: MCP3008 SPI mode
 )(
     // Clocks and User Controls
     input  wire        CLOCK_50,
@@ -37,7 +38,7 @@ module irrigation_top #(
     output wire        GPIO_1,     // MCP3008 ADC CS_N (PIN_AC15)
     output wire        GPIO_3,     // MCP3008 ADC SCLK (PIN_Y17)
     output wire        GPIO_5,     // MCP3008 ADC MOSI (PIN_Y16)
-    input  wire        GPIO_7,     // MCP3008 ADC MISO (PIN_AE16)
+    input  wire        GPIO_7,     // Sensor Input: LM393 DO / MCP3008 MISO (PIN_AE16)
     inout  wire        GPIO_9,     // DHT11 1-Wire Bidirectional (PIN_AF16)
     input  wire        GPIO_11,    // Rain Sensor Digital Input (PIN_AE15)
 
@@ -147,8 +148,8 @@ module irrigation_top #(
             manual_ovr_latched <= 1'b0;
             base_threshold_reg <= 7'd40; // Default nominal 40%
             synth_soil_reg     <= 10'd600; // Moderate moisture (~53%)
-            synth_temp_reg     <= 7'd24;   // 24°C
-            synth_hum_reg      <= 7'd55;   // 55% RH
+            synth_temp_reg     <= 7'd24;   // Default nominal 24°C
+            synth_hum_reg      <= 7'd55;   // Default nominal 55% RH
         end else begin
             if (btn_mode_toggle_pulse)
                 synth_mode_latched <= ~synth_mode_latched;
@@ -174,6 +175,7 @@ module irrigation_top #(
         end
     end
 
+    wire direct_do_mode    = DEFAULT_DIRECT_DO_MODE ^ SW[12];
     wire active_synth_mode = SW[17] | synth_mode_latched;
     wire eff_rain_detected = GPIO_11 | SW[16];
     wire eff_manual_ovr    = SW[15] | manual_ovr_latched;
@@ -265,10 +267,12 @@ module irrigation_top #(
     soil_moisture_adc_reader #(
         .CLK_FREQ_HZ    (CLK_FREQ_HZ),
         .SPI_CLK_HZ     (SPI_CLK_HZ),
-        .SAMPLE_RATE_HZ (SIM_SPEEDUP ? 100 : 10)
+        .SAMPLE_RATE_HZ (SIM_SPEEDUP ? 100 : 10),
+        .SIM_SPEEDUP    (SIM_SPEEDUP)
     ) u_soil_adc (
         .clk               (CLOCK_50),
         .rst_n             (rst_n),
+        .direct_do_mode_en (direct_do_mode),
         .synth_mode_en     (active_synth_mode),
         .synth_soil_adc    (synth_soil_reg),
         .synth_fault_inject(synth_adc_fault),
@@ -486,12 +490,14 @@ module irrigation_top #(
     assign LEDG[7]   = 1'b0;
     assign LEDG[8]   = active_synth_mode;
 
-    assign LEDR[0]   = rain_lockout;
-    assign LEDR[1]   = manual_ovr_active;
-    assign LEDR[2]   = dht_chk_err;
-    assign LEDR[3]   = dht_timeout_err;
-    assign LEDR[4]   = soil_adc_fault;
-    assign LEDR[17:5]= 13'd0;
+    assign LEDR[0]    = rain_lockout;
+    assign LEDR[1]    = manual_ovr_active;
+    assign LEDR[2]    = dht_chk_err;
+    assign LEDR[3]    = dht_timeout_err;
+    assign LEDR[4]    = soil_adc_fault;
+    assign LEDR[11:5] = 7'd0;
+    assign LEDR[12]   = direct_do_mode; // LED 12 indicates Direct LM393 DO mode
+    assign LEDR[17:13]= 5'd0;
 
     // ------------------------------------------------------------------------
     // Module 8: UART Telemetry Logger

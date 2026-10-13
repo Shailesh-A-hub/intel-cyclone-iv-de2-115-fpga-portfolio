@@ -19,6 +19,7 @@ hc_output/
 *.jbc
 *.ekp
 *.jdi
+*.jditmp
 *.done
 *.smsg
 *.summary
